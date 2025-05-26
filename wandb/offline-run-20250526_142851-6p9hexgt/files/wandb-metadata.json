@@ -1,0 +1,41 @@
+{
+  "os": "Windows-10-10.0.26100-SP0",
+  "python": "CPython 3.11.5",
+  "startedAt": "2025-05-26T19:28:51.611247Z",
+  "program": "D:\\contributions\\gemma3-object-detection\\train.py",
+  "codePath": "train.py",
+  "git": {
+    "remote": "https://github.com/AnimeshMaheshwari22/gemma3-object-detection.git",
+    "commit": "fb2bc35a799eb12c89dc6de81379ac03e6ce703a"
+  },
+  "root": "D:\\contributions\\gemma3-object-detection",
+  "host": "Animesh",
+  "executable": "D:\\contributions\\gemma3-object-detection\\myenv\\Scripts\\python.exe",
+  "codePathLocal": "train.py",
+  "cpu_count": 14,
+  "cpu_count_logical": 20,
+  "gpu": "NVIDIA GeForce RTX 4050 Laptop GPU",
+  "gpu_count": 1,
+  "disk": {
+    "/": {
+      "total": "104856547328",
+      "used": "93989834752"
+    }
+  },
+  "memory": {
+    "total": "16834945024"
+  },
+  "cpu": {
+    "count": 14,
+    "countLogical": 20
+  },
+  "gpu_nvidia": [
+    {
+      "name": "NVIDIA GeForce RTX 4050 Laptop GPU",
+      "memoryTotal": "6439305216",
+      "cudaCores": 2560,
+      "architecture": "Ada"
+    }
+  ],
+  "cudaVersion": "12.7"
+}

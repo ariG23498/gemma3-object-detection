@@ -10,6 +10,8 @@ class Configuration:
     model_id: str = "google/gemma-3-4b-pt"
     checkpoint_id: str = "sergiopaniego/gemma-3-4b-pt-object-detection-aug"
 
+    project_name: str = "Gemma3 training"
+
     device: str = "cuda" if torch.cuda.is_available() else "cpu"
     dtype: torch.dtype = torch.bfloat16
 

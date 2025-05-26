@@ -63,6 +63,13 @@ def train_model(model, optimizer, cfg, train_dataloader):
 if __name__ == "__main__":
     cfg = Configuration()
     processor = AutoProcessor.from_pretrained(cfg.model_id)
+    location_tokens = [f"<loc{i:04}>" for i in range(1025)]
+    det_name = ["plate"]
+
+    new_tokens = location_tokens + det_name
+
+    added_tokens = processor.tokenizer.add_tokens(new_tokens, special_tokens=True)
+
     train_dataloader = get_dataloader(processor)
 
     logger.info("Getting model & turning only attention parameters to trainable")
@@ -72,6 +79,9 @@ if __name__ == "__main__":
         device_map="cpu",
         attn_implementation="eager",
     )
+
+    model.resize_token_embeddings(len(processor.tokenizer))
+
     for name, param in model.named_parameters():
         if "attn" in name:
             param.requires_grad = True
