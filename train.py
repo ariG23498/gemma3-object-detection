@@ -5,7 +5,7 @@ from functools import partial
 import torch
 from datasets import load_dataset
 from torch.utils.data import DataLoader
-from transformers import AutoProcessor, Gemma3ForConditionalGeneration
+from transformers import AutoProcessor, Gemma3ForConditionalGeneration, BitsAndBytesConfig 
 
 from config import Configuration
 from utils import train_collate_function
@@ -65,12 +65,21 @@ if __name__ == "__main__":
     processor = AutoProcessor.from_pretrained(cfg.model_id)
     train_dataloader = get_dataloader(processor)
 
+    # Adding QLoRA configs
+    bnb_config = BitsAndBytesConfig(
+        load_in_4bit=True,
+        bnb_4bit_compute_dtype=torch.float16,
+        bnb_4bit_use_double_quant=True,
+        bnb_4bit_quant_type="nf4"
+    )
+
     logger.info("Getting model & turning only attention parameters to trainable")
     model = Gemma3ForConditionalGeneration.from_pretrained(
         cfg.model_id,
         torch_dtype=cfg.dtype,
         device_map="cpu",
         attn_implementation="eager",
+        quantization_config=bnb_config,
     )
     for name, param in model.named_parameters():
         if "attn" in name:
