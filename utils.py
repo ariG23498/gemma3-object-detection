@@ -47,8 +47,9 @@ def visualize_bounding_boxes(image, label, width, height, name):
     plt.axis("off")
     plt.title(f"Bounding Box: {category}")
     plt.tight_layout()
-    plt.show()
     plt.savefig(name)
+    plt.show()
+    plt.close()
 
 
 def train_collate_function(batch_of_samples, processor, dtype, transform=None):
