@@ -1,8 +1,0 @@
-{"time":"2025-05-26T14:28:51.7328694-05:00","level":"INFO","msg":"stream: starting","core version":"0.19.11","symlink path":"D:\\contributions\\gemma3-object-detection\\wandb\\offline-run-20250526_142851-6p9hexgt\\logs\\debug-core.log"}
-{"time":"2025-05-26T14:28:52.670976-05:00","level":"WARN","msg":"GraphQL client is nil, skipping feature loading"}
-{"time":"2025-05-26T14:28:52.6721566-05:00","level":"INFO","msg":"created new stream","id":"6p9hexgt"}
-{"time":"2025-05-26T14:28:52.6721566-05:00","level":"INFO","msg":"stream: started","id":"6p9hexgt"}
-{"time":"2025-05-26T14:28:52.6721566-05:00","level":"INFO","msg":"handler: started","stream_id":"6p9hexgt"}
-{"time":"2025-05-26T14:28:52.6727361-05:00","level":"INFO","msg":"writer: Do: started","stream_id":"6p9hexgt"}
-{"time":"2025-05-26T14:28:52.6727361-05:00","level":"INFO","msg":"sender: started","stream_id":"6p9hexgt"}
-{"time":"2025-05-26T14:28:52.6884721-05:00","level":"INFO","msg":"Starting system monitor"}
