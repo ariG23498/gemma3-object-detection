@@ -1,5 +1,5 @@
 from datasets import load_dataset
-
+import argparse
 
 def coco_to_xyxy(coco_bbox):
     x, y, width, height = coco_bbox
@@ -37,15 +37,23 @@ def format_objects(example):
 
 
 if __name__ == "__main__":
-    # load the dataset
-    dataset_id = "keremberke/license-plate-object-detection"
-    print(f"[INFO] loading {dataset_id} from hub...")
-    dataset = load_dataset("keremberke/license-plate-object-detection", "full")
+    # Support for generic script for dataset
+    parser = argparse.ArgumentParser(description='Process dataset for PaLiGemma')
+    parser.add_argument('--dataset', type=str, required=True, 
+                       help='Hugging Face dataset ID')
+    parser.add_argument('--config', type=str, default=None,
+                       help='Dataset configuration name')
+    parser.add_argument('--output_repo', type=str, required=True,
+                       help='Output repository ID for Hugging Face Hub')
+    args = parser.parse_args()
 
-    # modify the coco bbox format
-    dataset["train"] = dataset["train"].map(format_objects)
-    dataset["validation"] = dataset["validation"].map(format_objects)
-    dataset["test"] = dataset["test"].map(format_objects)
+    # load the dataset
+    print(f"[INFO] Loading {args.dataset} from hub...")
+    dataset = load_dataset(args.dataset, args.config) if args.config else load_dataset(args.dataset)
+
+    for split in dataset.keys():
+        print(f"[INFO] Processing split: {split}")
+        dataset[split] = dataset[split].map(format_objects)
 
     # push to hub
-    dataset.push_to_hub("ariG23498/license-detection-paligemma")
+    dataset.push_to_hub(args.output_repo)

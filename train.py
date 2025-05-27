@@ -25,9 +25,12 @@ augmentations = A.Compose([
 ], bbox_params=A.BboxParams(format='coco', label_fields=['category_ids'], filter_invalid_bboxes=True))
 
 
-def get_dataloader(processor):
+def get_dataloader(processor, cfg):
     logger.info("Fetching the dataset")
-    train_dataset = load_dataset(cfg.dataset_id, split="train")
+    if cfg.dataset_config:
+        train_dataset = load_dataset(cfg.dataset_id, cfg.dataset_config, split="train")
+    else:
+        train_dataset = load_dataset(cfg.dataset_id, split="train")
     train_collate_fn = partial(
         train_collate_function, processor=processor, dtype=cfg.dtype, transform=augmentations
     )
@@ -61,9 +64,9 @@ def train_model(model, optimizer, cfg, train_dataloader):
 
 
 if __name__ == "__main__":
-    cfg = Configuration()
+    cfg = Configuration.from_args()
     processor = AutoProcessor.from_pretrained(cfg.model_id)
-    train_dataloader = get_dataloader(processor)
+    train_dataloader = get_dataloader(processor, cfg)
 
     logger.info("Getting model & turning only attention parameters to trainable")
     model = Gemma3ForConditionalGeneration.from_pretrained(
