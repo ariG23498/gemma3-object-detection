@@ -24,10 +24,10 @@ def get_dataloader(processor):
 
 
 def load_model_for_inference(cfg):
-    """Charge le modèle pour l'inférence selon la configuration"""
-    
+    """Loads the model for inference based on the configuration"""
+
     if cfg.use_qlora:
-        # Charger le modèle de base avec quantification
+        # Load the base model with quantization
         print("Loading base model with quantization...")
         base_model = Gemma3ForConditionalGeneration.from_pretrained(
             cfg.model_id,
@@ -36,59 +36,59 @@ def load_model_for_inference(cfg):
             quantization_config=cfg.bnb_config,
             trust_remote_code=True,
         )
-        
-        # Charger les adaptateurs LoRA
+
+        # Load LoRA adapters
         print("Loading LoRA adapters...")
         model = PeftModel.from_pretrained(base_model, cfg.checkpoint_id)
         print("Model loaded with QLoRA adapters")
-        
+
     else:
-        # Mode traditionnel : charger le modèle complet
+        # Traditional mode: load the fully fine-tuned model
         print("Loading full fine-tuned model...")
         model = Gemma3ForConditionalGeneration.from_pretrained(
             cfg.checkpoint_id,
             torch_dtype=cfg.dtype,
             device_map="auto",
         )
-    
+
     return model
 
 
 if __name__ == "__main__":
     cfg = Configuration()
-    
-    # Charger le processeur
+
+    # Load the processor
     processor = AutoProcessor.from_pretrained(
         cfg.checkpoint_id if not cfg.use_qlora else cfg.model_id
     )
-    
-    # Charger le modèle selon la configuration
+
+    # Load the model based on the configuration
     model = load_model_for_inference(cfg)
     model.eval()
 
-    # Préparer les données de test
+    # Prepare test data
     test_dataloader = get_dataloader(processor=processor)
     sample, sample_images = next(iter(test_dataloader))
-    
-    # Déplacer sur le bon device
+
+    # Move data to the correct device
     sample = {k: v.to(model.device) if hasattr(v, 'to') else v for k, v in sample.items()}
 
-    # Génération
+    # Generation
     print("Generating predictions...")
     generation = model.generate(**sample, max_new_tokens=100, do_sample=False)
     decoded = processor.batch_decode(generation, skip_special_tokens=True)
 
-    # Visualisation des résultats
+    # Visualize results
     file_count = 0
     for output_text, sample_image in zip(decoded, sample_images):
         image = sample_image[0]
         width, height = image.size
-        
+
         print(f"Generated text for image {file_count}: {output_text}")
-        
+
         visualize_bounding_boxes(
             image, output_text, width, height, f"outputs/output_{file_count}.png"
         )
         file_count += 1
-    
+
     print(f"Generated {file_count} predictions in outputs/ directory")
