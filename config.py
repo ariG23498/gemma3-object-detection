@@ -16,3 +16,6 @@ class Configuration:
     batch_size: int = 8
     learning_rate: float = 2e-05
     epochs = 2
+    save_every: int = 1 
+    project_name: str = "gemma-object-detection"  
+    run_name: str = "exp1"  
