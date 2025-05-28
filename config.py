@@ -8,7 +8,7 @@ class Configuration:
     dataset_id: str = "ariG23498/license-detection-paligemma"
 
     model_id: str = "google/gemma-3-4b-pt"
-    checkpoint_id: str = "sergiopaniego/gemma-3-4b-pt-object-detection-aug"
+    checkpoint_id: str = "ariG23498/gemma-3-4b-pt-object-detection"
 
     device: str = "cuda" if torch.cuda.is_available() else "cpu"
     dtype: torch.dtype = torch.bfloat16
