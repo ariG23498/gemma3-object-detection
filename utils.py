@@ -6,6 +6,15 @@ from PIL import ImageDraw
 
 from create_dataset import format_objects
 
+def parse_paligemma_labels(labels, width, height):
+    # assuming <locx><locx><locx><locx> cat0; <locx><locx><locx><locx> cat1 ...
+    categories, cords = [],[]
+    for label in labels.split(";"):
+        category, cord = parse_paligemma_label(label, width, height)
+        categories.append(category)
+        cords.append(cord)
+    return categories, cords
+
 def parse_paligemma_label(label, width, height):
     # Extract location codes
     loc_pattern = r"<loc(\d{4})>"
@@ -58,7 +67,8 @@ def train_collate_function(batch_of_samples, processor, dtype, transform=None):
     for sample in batch_of_samples:
         if transform:
             transformed = transform(image=np.array(sample["image"]), bboxes=sample["objects"]["bbox"], category_ids=sample["objects"]["category"])
-            sample["image"] = transformed["image"]
+            # @sajjad: some coco images are b&w. need to reshape to (, ,3)
+            sample["image"] = transformed["image"] if transformed["image"].ndim == 3 else transformed["image"][:, :, np.newaxis].repeat(3, axis=2)
             sample["objects"]["bbox"] = transformed["bboxes"]
             sample["objects"]["category"] = transformed["category_ids"]
             sample["height"] = sample["image"].shape[0]
@@ -84,6 +94,7 @@ def train_collate_function(batch_of_samples, processor, dtype, transform=None):
     # Mask tokens for not being used in the loss computation
     labels[labels == processor.tokenizer.pad_token_id] = -100
     labels[labels == image_token_id] = -100
+    # @sajjad: what is 262144?
     labels[labels == 262144] = -100
 
     batch["labels"] = labels
