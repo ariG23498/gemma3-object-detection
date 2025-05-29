@@ -13,6 +13,6 @@ class Configuration:
     device: str = "cuda" if torch.cuda.is_available() else "cpu"
     dtype: torch.dtype = torch.bfloat16
 
-    batch_size: int = 8
+    batch_size: int = 1
     learning_rate: float = 2e-05
-    epochs = 2
+    epochs = 1
