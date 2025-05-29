@@ -24,7 +24,7 @@ def get_dataloader(processor):
 
 if __name__ == "__main__":
     cfg = Configuration()
-    processor = AutoProcessor.from_pretrained(cfg.checkpoint_id)
+    processor = AutoProcessor.from_pretrained(cfg.checkpoint_id, use_fast=False )
     model = Gemma3ForConditionalGeneration.from_pretrained(
         cfg.checkpoint_id,
         torch_dtype=cfg.dtype,
