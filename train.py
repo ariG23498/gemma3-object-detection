@@ -17,7 +17,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-
+# @sajjad: add more advanced augmentation
 augmentations = A.Compose([
     A.Resize(height=896, width=896),
     A.HorizontalFlip(p=0.5),
