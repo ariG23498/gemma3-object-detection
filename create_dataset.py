@@ -8,6 +8,8 @@ def coco_to_xyxy(coco_bbox):
     return [x1, y1, x2, y2]
 
 
+# @sajjad: this function assume that all the sabmples are from the same plate categoy
+# need to assign name based on each bbox
 def convert_to_detection_string(bboxs, image_width, image_height):
     def format_location(value, max_value):
         return f"<loc{int(round(value * 1024 / max_value)):04}>"
@@ -32,7 +34,13 @@ def format_objects(example):
     height = example["height"]
     width = example["width"]
     bboxs = example["objects"]["bbox"]
-    formatted_objects = convert_to_detection_string(bboxs, width, height)
+    # @sajjad: need to comeup with a consistent name for paligemma labels
+    # righ now coco dataset save them as od_string
+    # and licence plate dataset stores them as lavel_for_paligemma
+    if "od_string" in example:
+        formatted_objects = example["od_string"]
+    else:
+        formatted_objects = convert_to_detection_string(bboxs, width, height)
     return {"label_for_paligemma": formatted_objects}
 
 
