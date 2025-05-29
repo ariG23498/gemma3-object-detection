@@ -86,8 +86,8 @@ if __name__ == "__main__":
     optimizer = torch.optim.AdamW(params_to_train, lr=cfg.learning_rate)
 
     wandb.init(
-        project=cfg.project_name,
-        name=cfg.run_name if hasattr(cfg, "run_name") else None,
+        project=cfg.project_name if hasattr(cfg, "project_name") else "gemma3-object-detection",
+        name=cfg.run_name if hasattr(cfg, "run_name") else "0",
         config=vars(cfg),
     )
 
