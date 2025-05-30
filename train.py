@@ -5,7 +5,7 @@ from functools import partial
 import torch
 from datasets import load_dataset
 from torch.utils.data import DataLoader
-from transformers import AutoProcessor, Gemma3ForConditionalGeneration
+from transformers import AutoProcessor, AutoModelForVision2Seq, Gemma3ForConditionalGeneration
 
 from config import Configuration
 from utils import train_collate_function
@@ -18,18 +18,26 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-augmentations = A.Compose([
-    A.Resize(height=896, width=896),
-    A.HorizontalFlip(p=0.5),
-    A.ColorJitter(p=0.2),
-], bbox_params=A.BboxParams(format='coco', label_fields=['category_ids'], filter_invalid_bboxes=True))
+def get_augmentations():
+    if cfg.model_id == "HuggingFaceTB/SmolVLM-256M-Instruct":
+        resize_size = 512
+    else:
+        resize_size = 896
+
+    augmentations = A.Compose([
+        A.Resize(height=resize_size, width=resize_size),
+        A.HorizontalFlip(p=0.5),
+        A.ColorJitter(p=0.2),
+    ], bbox_params=A.BboxParams(format='coco', label_fields=['category_ids'], filter_invalid_bboxes=True))
+    return augmentations
+
 
 
 def get_dataloader(processor):
     logger.info("Fetching the dataset")
     train_dataset = load_dataset(cfg.dataset_id, split="train")
     train_collate_fn = partial(
-        train_collate_function, processor=processor, dtype=cfg.dtype, transform=augmentations
+        train_collate_function, processor=processor, dtype=cfg.dtype, transform=get_augmentations()
     )
 
     logger.info("Building data loader")
@@ -66,12 +74,18 @@ if __name__ == "__main__":
     train_dataloader = get_dataloader(processor)
 
     logger.info("Getting model & turning only attention parameters to trainable")
-    model = Gemma3ForConditionalGeneration.from_pretrained(
-        cfg.model_id,
-        torch_dtype=cfg.dtype,
-        device_map="cpu",
-        attn_implementation="eager",
-    )
+    if cfg.model_id == "HuggingFaceTB/SmolVLM-256M-Instruct":
+        model = AutoModelForVision2Seq.from_pretrained(
+            cfg.model_id,
+            device_map="auto",
+        )
+    else:
+        model = Gemma3ForConditionalGeneration.from_pretrained(
+            cfg.model_id,
+            torch_dtype=cfg.dtype,
+            device_map="auto",
+            _attn_implementation="eager",
+        )
     for name, param in model.named_parameters():
         if "attn" in name:
             param.requires_grad = True
