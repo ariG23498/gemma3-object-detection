@@ -24,7 +24,7 @@ def get_dataloader(processor):
 
 if __name__ == "__main__":
     cfg = Configuration()
-    processor = AutoProcessor.from_pretrained(cfg.checkpoint_id)
+    processor = AutoProcessor.from_pretrained(cfg.checkpoint_id, use_fast=False )
     model = Gemma3ForConditionalGeneration.from_pretrained(
         cfg.checkpoint_id,
         torch_dtype=cfg.dtype,
@@ -44,7 +44,10 @@ if __name__ == "__main__":
     for output_text, sample_image in zip(decoded, sample_images):
         image = sample_image[0]
         width, height = image.size
-        visualize_bounding_boxes(
-            image, output_text, width, height, f"outputs/output_{file_count}.png"
-        )
+        try:
+            visualize_bounding_boxes(
+                image, output_text, width, height, f"outputs/output_{file_count}.png"
+            )
+        except:
+            print("failed to generate correct detection format.")
         file_count += 1

@@ -17,7 +17,8 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-
+# @sajjad: add more advanced augmentation
+# see https://github.com/albumentations-team/albumentations?tab=readme-ov-file#list-of-augmentations
 augmentations = A.Compose([
     A.Resize(height=896, width=896),
     A.HorizontalFlip(p=0.5),
@@ -81,21 +82,19 @@ if __name__ == "__main__":
     model.train()
     model.to(cfg.device)
 
-    # Credits to Sayak Paul for this beautiful expression
     params_to_train = list(filter(lambda x: x.requires_grad, model.parameters()))
     optimizer = torch.optim.AdamW(params_to_train, lr=cfg.learning_rate)
 
     wandb.init(
-        project=cfg.project_name,
-        name=cfg.run_name if hasattr(cfg, "run_name") else None,
+        project=cfg.project_name if hasattr(cfg, "project_name") else "gemma3-object-detection",
+        name=cfg.run_name if hasattr(cfg, "run_name") else "0",
         config=vars(cfg),
     )
 
     train_model(model, optimizer, cfg, train_dataloader)
 
-    # Push the checkpoint to hub
+    
     model.push_to_hub(cfg.checkpoint_id)
     processor.push_to_hub(cfg.checkpoint_id)
-
     wandb.finish()
     logger.info("Train finished")

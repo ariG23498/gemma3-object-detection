@@ -30,6 +30,7 @@ Get your environment ready to fine-tune Gemma 3:
 git clone https://github.com/ariG23498/gemma3-object-detection.git
 uv venv .venv --python 3.10
 source .venv/bin/activate
+cd gemma3-object-detection
 uv pip install -r requirements.txt
 ```
 
