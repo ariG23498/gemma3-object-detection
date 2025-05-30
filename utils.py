@@ -73,7 +73,8 @@ def train_collate_function(batch_of_samples, processor, dtype, transform=None):
             sample["objects"]["category"] = transformed["category_ids"]
             sample["height"] = sample["image"].shape[0]
             sample["width"] = sample["image"].shape[1]
-            sample['label_for_paligemma'] = format_objects(sample)['label_for_paligemma'] 
+            if not 'label_for_paligemma' in sample:
+                sample['label_for_paligemma'] = format_objects(sample)['label_for_paligemma'] 
         images.append([sample["image"]])
         prompts.append(
             f"{processor.tokenizer.boi_token} detect \n\n{sample['label_for_paligemma']} {processor.tokenizer.eos_token}"
