@@ -62,22 +62,56 @@ def visualize_bounding_boxes(image, label, width, height, name):
 
 
 def train_collate_function(batch_of_samples, processor, dtype, transform=None):
+    # @sajjad: need to set a max number of detections to avoid GPU OOM
+    MAX_DETS = 50
     images = []
     prompts = []
+
     for sample in batch_of_samples:
         if transform:
-            transformed = transform(image=np.array(sample["image"]), bboxes=sample["objects"]["bbox"], category_ids=sample["objects"]["category"])
-            # @sajjad: some coco images are b&w. need to reshape to (, ,3)
-            sample["image"] = transformed["image"] if transformed["image"].ndim == 3 else transformed["image"][:, :, np.newaxis].repeat(3, axis=2)
-            sample["objects"]["bbox"] = transformed["bboxes"]
-            sample["objects"]["category"] = transformed["category_ids"]
+            transformed = transform(
+                image=np.array(sample["image"]),
+                bboxes=sample["objects"]["bbox"],
+                category_ids=sample["objects"]["category"],
+            )
+
+            # 1. Fix image shape to 3 channels
+            img = transformed["image"]
+            if img.ndim == 2:
+                img = img[:, :, np.newaxis].repeat(3, axis=2)
+            sample["image"] = img
+
+            # 2. Grab the full lists of bboxes & category_ids
+            bboxes = transformed["bboxes"]
+            cats   = transformed["category_ids"]
+
+            # 3. Randomly sample up to MAX_DETS
+            num_objs = len(bboxes)
+            # Always sample `sample_size = min(num_objs, MAX_DETS)`:
+            sample_size = min(num_objs, MAX_DETS)
+            # Since sample_size <= num_objs, we can safely sample without replacement:
+            chosen_idx = np.random.choice(num_objs, size=sample_size, replace=False)
+
+            # 4. Subset both lists in exactly the same way
+            bboxes = [bboxes[i] for i in chosen_idx]
+            cats   = [cats[i]   for i in chosen_idx]
+
+            # 5. Write the (possibly truncated/shuffled) lists back
+            sample["objects"]["bbox"]     = bboxes
+            sample["objects"]["category"] = cats
+
+            # 6. Update height/width (image may have been transformed)
             sample["height"] = sample["image"].shape[0]
-            sample["width"] = sample["image"].shape[1]
-            if not 'label_for_paligemma' in sample:
-                sample['label_for_paligemma'] = format_objects(sample)['label_for_paligemma'] 
+            sample["width"]  = sample["image"].shape[1]
+
+            # 7. Recompute your label string after subsampling
+            sample["label_for_paligemma"] = format_objects(sample)["label_for_paligemma"]
+
         images.append([sample["image"]])
         prompts.append(
-            f"{processor.tokenizer.boi_token} detect \n\n{sample['label_for_paligemma']} {processor.tokenizer.eos_token}"
+            f"{processor.tokenizer.boi_token} detect \n\n"
+            f"{sample['label_for_paligemma']} "
+            f"{processor.tokenizer.eos_token}"
         )
 
     batch = processor(images=images, text=prompts, return_tensors="pt", padding=True)
