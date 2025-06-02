@@ -12,6 +12,10 @@ from utils import train_collate_function
 
 import albumentations as A
 
+from accelerate import Accelerator
+accelerator = Accelerator()
+device = accelerator.device
+
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
@@ -48,13 +52,13 @@ def train_model(model, optimizer, cfg, train_dataloader):
     global_step = 0
     for epoch in range(cfg.epochs):
         for idx, batch in enumerate(train_dataloader):
-            outputs = model(**batch.to(model.device))
+            outputs = model(**batch)
             loss = outputs.loss
             if idx % 100 == 0:
                 logger.info(f"Epoch: {epoch} Iter: {idx} Loss: {loss.item():.4f}")
                 wandb.log({"train/loss": loss.item(), "epoch": epoch}, step=global_step)
 
-            loss.backward()
+            accelerator.backward(loss)
             optimizer.step()
             optimizer.zero_grad()
             global_step += 1
@@ -80,10 +84,13 @@ if __name__ == "__main__":
             param.requires_grad = False
 
     model.train()
-    model.to(cfg.device)
 
     params_to_train = list(filter(lambda x: x.requires_grad, model.parameters()))
     optimizer = torch.optim.AdamW(params_to_train, lr=cfg.learning_rate)
+
+    model, optimizer, train_dataloader = accelerator.prepare(
+        model, optimizer, train_dataloader
+    )
 
     wandb.init(
         project=cfg.project_name if hasattr(cfg, "project_name") else "gemma3-object-detection",
@@ -92,9 +99,11 @@ if __name__ == "__main__":
     )
 
     train_model(model, optimizer, cfg, train_dataloader)
+    accelerator.end_training()
 
     
-    model.push_to_hub(cfg.checkpoint_id)
+    unwrapped_model = accelerator.unwrap_model(model)
+    unwrapped_model.push_to_hub(cfg.checkpoint_id)
     processor.push_to_hub(cfg.checkpoint_id)
     wandb.finish()
     logger.info("Train finished")
