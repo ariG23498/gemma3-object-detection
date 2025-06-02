@@ -15,7 +15,7 @@ class Configuration:
 
     batch_size: int = 1
     learning_rate: float = 2e-05
-    epochs = 1
+    epochs = 10
 
     project_name: str = "gemma3-coco"
     run_name: str  = "coco_00"
