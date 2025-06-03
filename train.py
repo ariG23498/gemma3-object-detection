@@ -8,7 +8,7 @@ from torch.utils.data import DataLoader
 from transformers import AutoProcessor, Gemma3ForConditionalGeneration
 
 from config import Configuration
-from utils import train_collate_function, get_last_checkpoint_epoch
+from utils import train_collate_function, get_last_checkpoint_step
 
 import albumentations as A
 
@@ -50,30 +50,39 @@ def get_dataloader(processor):
 
 def train_model(model, optimizer, cfg, train_dataloader):
     logger.info("Start training")
+
     if cfg.resume:
-        last_dir = accelerator.load_state()
-        starting_epoch = get_last_checkpoint_epoch(accelerator)
-        global_step = starting_epoch * len(train_dataloader)
-        accelerator.project_configuration.iteration = starting_epoch + 1
+        check_point_number = get_last_checkpoint_step(accelerator)
+        global_step = check_point_number * cfg.checkpoint_interval +1
+        starting_epoch = int(global_step/len(train_dataloader))
+        skip_batch = global_step % len(train_dataloader)
+        accelerator.project_configuration.iteration = check_point_number + 1
+        skip_dataloader = accelerator.skip_first_batches(train_dataloader, skip_batch)
+        accelerator.load_state()
     else:
-        accelerator.save_state()
-        starting_epoch = 0
+        check_point_number = 0
         global_step = 0
+        starting_epoch = 0
+        skip_batch = 0
         accelerator.project_configuration.iteration = 0
+        skip_dataloader = train_dataloader
+        accelerator.save_state()
     
     for epoch in range(starting_epoch, cfg.epochs):
-        for idx, batch in enumerate(train_dataloader):
+        for idx, batch in enumerate(skip_dataloader):
             outputs = model(**batch)
             loss = outputs.loss
-            if idx % 100 == 0:
-                logger.info(f"Epoch: {epoch+1} Iter: {idx} Loss: {loss.item():.4f}")
+            if (idx+skip_batch) % cfg.log_interval == 0:
+                logger.info(f"Epoch: {epoch+1} Iter: {idx+skip_batch} Loss: {loss.item():.4f}")
                 wandb.log({"train/loss": loss.item(), "epoch": epoch}, step=global_step)
-
             accelerator.backward(loss)
             optimizer.step()
             optimizer.zero_grad()
             global_step += 1
-        accelerator.save_state()
+            if global_step % cfg.checkpoint_interval == 0:
+                accelerator.save_state()
+        skip_dataloader = train_dataloader
+        skip_batch = 0
     accelerator.end_training()
     return model
 
