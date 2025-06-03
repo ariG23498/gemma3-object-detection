@@ -63,7 +63,7 @@ def visualize_bounding_boxes(image, label, width, height, name):
 
 def train_collate_function(batch_of_samples, processor, dtype, transform=None):
     # @sajjad: need to set a max number of detections to avoid GPU OOM
-    MAX_DETS = 40
+    MAX_DETS = 50
     images = []
     prompts = []
 
