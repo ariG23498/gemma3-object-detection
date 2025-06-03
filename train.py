@@ -8,13 +8,14 @@ from torch.utils.data import DataLoader
 from transformers import AutoProcessor, Gemma3ForConditionalGeneration
 
 from config import Configuration
-from utils import train_collate_function
+from utils import train_collate_function, get_last_checkpoint_epoch
 
 import albumentations as A
 
 from accelerate import Accelerator
-accelerator = Accelerator()
-device = accelerator.device
+from accelerate.logging import get_logger
+from accelerate.utils import ProjectConfiguration, set_seed
+
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
@@ -49,24 +50,45 @@ def get_dataloader(processor):
 
 def train_model(model, optimizer, cfg, train_dataloader):
     logger.info("Start training")
-    global_step = 0
-    for epoch in range(cfg.epochs):
+    if cfg.resume:
+        last_dir = accelerator.load_state()
+        starting_epoch = get_last_checkpoint_epoch(accelerator)
+        global_step = starting_epoch * len(train_dataloader)
+        accelerator.project_configuration.iteration = starting_epoch + 1
+    else:
+        accelerator.save_state()
+        starting_epoch = 0
+        global_step = 0
+        accelerator.project_configuration.iteration = 0
+    
+    for epoch in range(starting_epoch, cfg.epochs):
         for idx, batch in enumerate(train_dataloader):
             outputs = model(**batch)
             loss = outputs.loss
             if idx % 100 == 0:
-                logger.info(f"Epoch: {epoch} Iter: {idx} Loss: {loss.item():.4f}")
+                logger.info(f"Epoch: {epoch+1} Iter: {idx} Loss: {loss.item():.4f}")
                 wandb.log({"train/loss": loss.item(), "epoch": epoch}, step=global_step)
 
             accelerator.backward(loss)
             optimizer.step()
             optimizer.zero_grad()
             global_step += 1
+        accelerator.save_state()
+    accelerator.end_training()
     return model
 
 
 if __name__ == "__main__":
     cfg = Configuration()
+
+    accelerator = Accelerator(
+        project_config=ProjectConfiguration(
+            project_dir=f"{cfg.project_dir}/{cfg.run_name}",
+            logging_dir=f"{cfg.project_dir}/{cfg.run_name}/{cfg.log_dir}",
+            automatic_checkpoint_naming = cfg.automatic_checkpoint_naming,
+        ),
+    )
+
     processor = AutoProcessor.from_pretrained(cfg.model_id)
     train_dataloader = get_dataloader(processor)
 
@@ -99,9 +121,7 @@ if __name__ == "__main__":
     )
 
     train_model(model, optimizer, cfg, train_dataloader)
-    accelerator.end_training()
 
-    
     unwrapped_model = accelerator.unwrap_model(model)
     unwrapped_model.push_to_hub(cfg.checkpoint_id)
     processor.push_to_hub(cfg.checkpoint_id)

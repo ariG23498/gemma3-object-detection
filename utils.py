@@ -1,5 +1,5 @@
 import re
-
+import os
 import matplotlib.pyplot as plt
 import numpy as np
 from PIL import ImageDraw
@@ -63,7 +63,7 @@ def visualize_bounding_boxes(image, label, width, height, name):
 
 def train_collate_function(batch_of_samples, processor, dtype, transform=None):
     # @sajjad: need to set a max number of detections to avoid GPU OOM
-    MAX_DETS = 50
+    MAX_DETS = 40
     images = []
     prompts = []
 
@@ -152,3 +152,14 @@ def test_collate_function(batch_of_samples, processor, dtype):
         dtype
     )  # to check with the implementation
     return batch, images
+
+def get_last_checkpoint_epoch(accelerator):
+    input_dir = os.path.join(accelerator.project_dir, "checkpoints")
+    folders = [os.path.join(input_dir, folder) for folder in os.listdir(input_dir)]
+
+    def _inner(folder):
+        return list(map(int, re.findall(r"[\/]?([0-9]+)(?=[^\/]*$)", folder)))[0]
+
+    folders.sort(key=_inner)
+    input_dir = folders[-1]
+    return _inner(input_dir)

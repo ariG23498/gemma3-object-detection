@@ -19,3 +19,8 @@ class Configuration:
 
     project_name: str = "gemma3-coco"
     run_name: str  = "coco_00"
+
+    project_dir: str = "runs"
+    log_dir: str  = "logs"
+    automatic_checkpoint_naming: bool = True
+    resume: bool = False
