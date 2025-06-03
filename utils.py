@@ -153,7 +153,7 @@ def test_collate_function(batch_of_samples, processor, dtype):
     )  # to check with the implementation
     return batch, images
 
-def get_last_checkpoint_epoch(accelerator):
+def get_last_checkpoint_step(accelerator):
     input_dir = os.path.join(accelerator.project_dir, "checkpoints")
     folders = [os.path.join(input_dir, folder) for folder in os.listdir(input_dir)]
 
