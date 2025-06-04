@@ -1,10 +1,21 @@
 import re
-
+import os
 import matplotlib.pyplot as plt
 import numpy as np
-from PIL import ImageDraw
+from PIL import ImageDraw, Image, ImageFont
+font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", size=20)
+
 
 from create_dataset import format_objects
+
+def parse_paligemma_labels(labels, width, height):
+    # assuming <locx><locx><locx><locx> cat0; <locx><locx><locx><locx> cat1 ...
+    categories, cords = [],[]
+    for label in labels.split(";"):
+        category, cord = parse_paligemma_label(label, width, height)
+        categories.append(category)
+        cords.append(cord)
+    return categories, cords
 
 def parse_paligemma_label(label, width, height):
     # Extract location codes
@@ -27,25 +38,26 @@ def parse_paligemma_label(label, width, height):
     return category, [x1, y1, x2, y2]
 
 
-def visualize_bounding_boxes(image, label, width, height, name):
+def visualize_bounding_boxes(image, labels, width, height, name):
     # Create a copy of the image to draw on
-    draw_image = image.copy()
+    draw_image = Image.fromarray(image.copy())
     draw = ImageDraw.Draw(draw_image)
 
     # Parse the label
-    category, bbox = parse_paligemma_label(label, width, height)
+    cats, bboxs = parse_paligemma_labels(labels, width, height)
 
-    # Draw the bounding box
-    draw.rectangle(bbox, outline="red", width=2)
+    for cat, bbox in zip(cats, bboxs):
+        # Draw the bounding box
+        draw.rectangle(bbox, outline="red", width=2)
 
-    # Add category label
-    draw.text((bbox[0], max(0, bbox[1] - 10)), category, fill="red")
+        # Add category label
+        draw.text((bbox[0], max(0, bbox[1] - 20)), cat, fill="red", font=font)
 
     # Show the image
     plt.figure(figsize=(10, 6))
     plt.imshow(draw_image)
     plt.axis("off")
-    plt.title(f"Bounding Box: {category}")
+    plt.title(f"Dets & Cats")
     plt.tight_layout()
     plt.savefig(name)
     plt.show()
@@ -53,20 +65,56 @@ def visualize_bounding_boxes(image, label, width, height, name):
 
 
 def train_collate_function(batch_of_samples, processor, dtype, transform=None):
+    # @sajjad: need to set a max number of detections to avoid GPU OOM
+    MAX_DETS = 50
     images = []
     prompts = []
+
     for sample in batch_of_samples:
         if transform:
-            transformed = transform(image=np.array(sample["image"]), bboxes=sample["objects"]["bbox"], category_ids=sample["objects"]["category"])
-            sample["image"] = transformed["image"]
-            sample["objects"]["bbox"] = transformed["bboxes"]
-            sample["objects"]["category"] = transformed["category_ids"]
+            transformed = transform(
+                image=np.array(sample["image"]),
+                bboxes=sample["objects"]["bbox"],
+                category_ids=sample["objects"]["category"],
+            )
+
+            # 1. Fix image shape to 3 channels
+            img = transformed["image"]
+            if img.ndim == 2:
+                img = img[:, :, np.newaxis].repeat(3, axis=2)
+            sample["image"] = img
+
+            # 2. Grab the full lists of bboxes & category_ids
+            bboxes = transformed["bboxes"]
+            cats   = transformed["category_ids"]
+
+            # 3. Randomly sample up to MAX_DETS
+            num_objs = len(bboxes)
+            # Always sample `sample_size = min(num_objs, MAX_DETS)`:
+            sample_size = min(num_objs, MAX_DETS)
+            # Since sample_size <= num_objs, we can safely sample without replacement:
+            chosen_idx = np.random.choice(num_objs, size=sample_size, replace=False)
+
+            # 4. Subset both lists in exactly the same way
+            bboxes = [bboxes[i] for i in chosen_idx]
+            cats   = [cats[i]   for i in chosen_idx]
+
+            # 5. Write the (possibly truncated/shuffled) lists back
+            sample["objects"]["bbox"]     = bboxes
+            sample["objects"]["category"] = cats
+
+            # 6. Update height/width (image may have been transformed)
             sample["height"] = sample["image"].shape[0]
-            sample["width"] = sample["image"].shape[1]
-            sample['label_for_paligemma'] = format_objects(sample)['label_for_paligemma'] 
+            sample["width"]  = sample["image"].shape[1]
+
+            # 7. Recompute your label string after subsampling
+            sample["label_for_paligemma"] = format_objects(sample)["label_for_paligemma"]
+
         images.append([sample["image"]])
         prompts.append(
-            f"{processor.tokenizer.boi_token} detect \n\n{sample['label_for_paligemma']} {processor.tokenizer.eos_token}"
+            f"{processor.tokenizer.boi_token} detect \n\n"
+            f"{sample['label_for_paligemma']} "
+            f"{processor.tokenizer.eos_token}"
         )
 
     batch = processor(images=images, text=prompts, return_tensors="pt", padding=True)
@@ -84,6 +132,7 @@ def train_collate_function(batch_of_samples, processor, dtype, transform=None):
     # Mask tokens for not being used in the loss computation
     labels[labels == processor.tokenizer.pad_token_id] = -100
     labels[labels == image_token_id] = -100
+    # @sajjad: what is 262144?
     labels[labels == 262144] = -100
 
     batch["labels"] = labels
@@ -94,11 +143,20 @@ def train_collate_function(batch_of_samples, processor, dtype, transform=None):
     return batch
 
 
-def test_collate_function(batch_of_samples, processor, dtype):
+def test_collate_function(batch_of_samples, processor, dtype, transform):
     images = []
     prompts = []
     for sample in batch_of_samples:
-        images.append([sample["image"]])
+        transformed = transform(
+            image=np.array(sample["image"]),
+            bboxes=sample["objects"]["bbox"],
+            category_ids=sample["objects"]["category"],
+        )
+        img = transformed["image"]
+        if img.ndim == 2:
+            img = img[:, :, np.newaxis].repeat(3, axis=2)
+        sample["image"] = img
+        images.append([img])
         prompts.append(f"{processor.tokenizer.boi_token} detect \n\n")
 
     batch = processor(images=images, text=prompts, return_tensors="pt", padding=True)
@@ -106,3 +164,14 @@ def test_collate_function(batch_of_samples, processor, dtype):
         dtype
     )  # to check with the implementation
     return batch, images
+
+def get_last_checkpoint_step(accelerator):
+    input_dir = os.path.join(accelerator.project_dir, "checkpoints")
+    folders = [os.path.join(input_dir, folder) for folder in os.listdir(input_dir)]
+
+    def _inner(folder):
+        return list(map(int, re.findall(r"[\/]?([0-9]+)(?=[^\/]*$)", folder)))[0]
+
+    folders.sort(key=_inner)
+    input_dir = folders[-1]
+    return _inner(input_dir)
