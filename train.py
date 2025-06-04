@@ -9,7 +9,7 @@ from transformers import AutoProcessor, Gemma3ForConditionalGeneration
 
 from config import Configuration
 from utils import train_collate_function
-
+import argparse
 import albumentations as A
 
 logging.basicConfig(
@@ -25,20 +25,17 @@ augmentations = A.Compose([
 ], bbox_params=A.BboxParams(format='coco', label_fields=['category_ids'], filter_invalid_bboxes=True))
 
 
-def get_dataloader(processor, cfg):
+def get_dataloader(processor, args, dtype):
     logger.info("Fetching the dataset")
-    if cfg.dataset_config:
-        train_dataset = load_dataset(cfg.dataset_id, cfg.dataset_config, split="train")
-    else:
-        train_dataset = load_dataset(cfg.dataset_id, split="train")
+    train_dataset = load_dataset(cfg.dataset_id, split="train")
     train_collate_fn = partial(
-        train_collate_function, processor=processor, dtype=cfg.dtype, transform=augmentations
+        train_collate_function, processor=processor, dtype=dtype, transform=augmentations
     )
 
     logger.info("Building data loader")
     train_dataloader = DataLoader(
         train_dataset,
-        batch_size=cfg.batch_size,
+        batch_size=args.batch_size,
         collate_fn=train_collate_fn,
         shuffle=True,
     )
@@ -65,8 +62,18 @@ def train_model(model, optimizer, cfg, train_dataloader):
 
 if __name__ == "__main__":
     cfg = Configuration.from_args()
-    processor = AutoProcessor.from_pretrained(cfg.model_id)
-    train_dataloader = get_dataloader(processor, cfg)
+
+    # Get values dynamicaly from user
+    parser = argparse.ArgumentParser(description="Training for PaLiGemma")
+    parser.add_argument('--model_id', type=str, required=True, default=cfg.model_id, help='Enter Huggingface Model ID')
+    parser.add_argument('--dataset_id', type=str, required=True ,default=cfg.dataset_id, help='Enter Huggingface Dataset ID')
+    parser.add_argument('--batch_size', type=int, default=cfg.batch_size, help='Enter Batch Size')
+    parser.add_argument('--lr', type=float, default=cfg.learning_rate, help='Enter Learning Rate')
+    parser.add_argument('--checkpoint_id', type=str, required=True, default=cfg.checkpoint_id, help='Enter Huggingface Repo ID to push model')
+
+    args = parser.parse_args()
+    processor = AutoProcessor.from_pretrained(args.model_id)
+    train_dataloader = get_dataloader(processor=processor, args=args, dtype=cfg.dtype)
 
     logger.info("Getting model & turning only attention parameters to trainable")
     model = Gemma3ForConditionalGeneration.from_pretrained(
@@ -86,7 +93,7 @@ if __name__ == "__main__":
 
     # Credits to Sayak Paul for this beautiful expression
     params_to_train = list(filter(lambda x: x.requires_grad, model.parameters()))
-    optimizer = torch.optim.AdamW(params_to_train, lr=cfg.learning_rate)
+    optimizer = torch.optim.AdamW(params_to_train, lr=args.lr)
 
     wandb.init(
         project=cfg.project_name,

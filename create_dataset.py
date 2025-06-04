@@ -1,5 +1,6 @@
 from datasets import load_dataset
 import argparse
+from config import Configuration
 
 def coco_to_xyxy(coco_bbox):
     x, y, width, height = coco_bbox
@@ -38,13 +39,10 @@ def format_objects(example):
 
 if __name__ == "__main__":
     # Support for generic script for dataset
+    cfg = Configuration() 
     parser = argparse.ArgumentParser(description='Process dataset for PaLiGemma')
-    parser.add_argument('--dataset', type=str, required=True, 
-                       help='Hugging Face dataset ID')
-    parser.add_argument('--config', type=str, default=None,
-                       help='Dataset configuration name')
-    parser.add_argument('--output_repo', type=str, required=True,
-                       help='Output repository ID for Hugging Face Hub')
+    parser.add_argument('--dataset', type=str, required=True, default=cfg.dataset_id, help='Hugging Face dataset ID')
+    parser.add_argument('--output_repo', type=str, required=True, help='Output repository ID for Hugging Face Hub')
     args = parser.parse_args()
 
     # load the dataset
