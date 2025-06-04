@@ -90,7 +90,7 @@ def coco_cat_to_name(coco_cat):
         79: 'hair drier',
         80: 'toothbrush'
     }
-    return cat_to_name[int(coco_cat)]
+    return cat_to_name[int(coco_cat)+1]
 
 def convert_to_detection_string(bboxs, image_width, image_height, cats):
     def format_location(value, max_value):
