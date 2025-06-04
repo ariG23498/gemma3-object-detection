@@ -2,7 +2,9 @@ import re
 import os
 import matplotlib.pyplot as plt
 import numpy as np
-from PIL import ImageDraw
+from PIL import ImageDraw, Image, ImageFont
+font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", size=20)
+
 
 from create_dataset import format_objects
 
@@ -36,25 +38,26 @@ def parse_paligemma_label(label, width, height):
     return category, [x1, y1, x2, y2]
 
 
-def visualize_bounding_boxes(image, label, width, height, name):
+def visualize_bounding_boxes(image, labels, width, height, name):
     # Create a copy of the image to draw on
-    draw_image = image.copy()
+    draw_image = Image.fromarray(image.copy())
     draw = ImageDraw.Draw(draw_image)
 
     # Parse the label
-    category, bbox = parse_paligemma_label(label, width, height)
+    cats, bboxs = parse_paligemma_labels(labels, width, height)
 
-    # Draw the bounding box
-    draw.rectangle(bbox, outline="red", width=2)
+    for cat, bbox in zip(cats, bboxs):
+        # Draw the bounding box
+        draw.rectangle(bbox, outline="red", width=2)
 
-    # Add category label
-    draw.text((bbox[0], max(0, bbox[1] - 10)), category, fill="red")
+        # Add category label
+        draw.text((bbox[0], max(0, bbox[1] - 20)), cat, fill="red", font=font)
 
     # Show the image
     plt.figure(figsize=(10, 6))
     plt.imshow(draw_image)
     plt.axis("off")
-    plt.title(f"Bounding Box: {category}")
+    plt.title(f"Dets & Cats")
     plt.tight_layout()
     plt.savefig(name)
     plt.show()
@@ -140,11 +143,20 @@ def train_collate_function(batch_of_samples, processor, dtype, transform=None):
     return batch
 
 
-def test_collate_function(batch_of_samples, processor, dtype):
+def test_collate_function(batch_of_samples, processor, dtype, transform):
     images = []
     prompts = []
     for sample in batch_of_samples:
-        images.append([sample["image"]])
+        transformed = transform(
+            image=np.array(sample["image"]),
+            bboxes=sample["objects"]["bbox"],
+            category_ids=sample["objects"]["category"],
+        )
+        img = transformed["image"]
+        if img.ndim == 2:
+            img = img[:, :, np.newaxis].repeat(3, axis=2)
+        sample["image"] = img
+        images.append([img])
         prompts.append(f"{processor.tokenizer.boi_token} detect \n\n")
 
     batch = processor(images=images, text=prompts, return_tensors="pt", padding=True)
