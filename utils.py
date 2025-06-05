@@ -6,6 +6,10 @@ from PIL import ImageDraw
 
 from create_dataset import format_objects
 
+from transformers import AutoTokenizer, AutoProcessor
+from config import Configuration
+cfg = Configuration()
+
 def parse_paligemma_label(label, width, height):
     # Extract location codes
     loc_pattern = r"<loc(\d{4})>"
@@ -106,3 +110,33 @@ def test_collate_function(batch_of_samples, processor, dtype):
         dtype
     )  # to check with the implementation
     return batch, images
+
+
+def get_tokenizer_with_new_tokens():
+    # Load processor and tokenizer
+    processor = AutoProcessor.from_pretrained(cfg.model_id)
+    tokenizer = AutoTokenizer.from_pretrained(cfg.model_id)
+
+    # Get original sizes
+    original_vocab_size = tokenizer.vocab_size
+    original_total_size = len(tokenizer)
+
+    print(f"Original vocab size (pretrained): {original_vocab_size}")
+    print(f"Original total tokenizer size (includes added tokens): {original_total_size}")
+
+    # Add new location tokens
+    location_tokens = [f"<loc{i:04}>" for i in range(1024)]
+    added_tokens_count = tokenizer.add_tokens(location_tokens, special_tokens=True)
+
+    # Get updated sizes
+    new_total_size = len(tokenizer)
+
+    print(f"Number of new tokens added: {added_tokens_count}")
+    print(f"New total tokenizer size: {new_total_size}")
+
+    # Attach updated tokenizer to processor if needed
+    processor.tokenizer = tokenizer
+
+    # Update the model's embedding size
+    # model.resize_token_embeddings(len(tokenizer))
+    return processor, tokenizer
