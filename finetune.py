@@ -183,7 +183,7 @@ if __name__ == "__main__":
 
     wandb.init(
         project=cfg.project_name,
-        name=cfg.run_name if hasattr(cfg, "run_name") else None,
+        name=cfg.run_name if hasattr(cfg, "run_name") else f"{args.peft_type} run",
         config=vars(cfg),
     )
 
