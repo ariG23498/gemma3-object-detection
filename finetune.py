@@ -6,13 +6,19 @@ import torch
 from datasets import load_dataset
 from torch.utils.data import DataLoader
 from transformers import AutoProcessor, Gemma3ForConditionalGeneration
+from peft import LoraConfig, get_peft_model
 
 from config import Configuration
 from utils import train_collate_function
 import argparse
 import albumentations as A
-
+import yaml
 from tqdm import tqdm
+from transformers import BitsAndBytesConfig  
+from peft import prepare_model_for_kbit_training  
+
+
+
 
 
 
@@ -22,13 +28,11 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-
 augmentations = A.Compose([
     A.Resize(height=896, width=896),
     A.HorizontalFlip(p=0.5),
     A.ColorJitter(p=0.2),
 ], bbox_params=A.BboxParams(format='coco', label_fields=['category_ids'], filter_invalid_bboxes=True))
-
 
 def get_dataloader(processor, args, dtype):
     logger.info("Fetching the dataset")
@@ -45,7 +49,6 @@ def get_dataloader(processor, args, dtype):
         shuffle=True,
     )
     return train_dataloader
-
 
 def train_model(model, optimizer, cfg, train_dataloader):
     logger.info("Start training")
@@ -80,10 +83,30 @@ def train_model(model, optimizer, cfg, train_dataloader):
     return model
 
 
-if __name__ == "__main__":
-    cfg = Configuration()
+def get_peft_config(peft_type: str, config_dict: dict) -> LoraConfig:
+    """Factory method to create PEFT config based on type"""
+    common_config = {
+        "r": config_dict["r"],
+        "lora_alpha": config_dict["lora_alpha"],
+        "target_modules": config_dict["target_modules"],
+        "lora_dropout": config_dict["lora_dropout"],
+        "bias": config_dict["bias"],
+        "task_type": config_dict["task_type"],
+    }
+    
+    if peft_type == "qlora":
+        # Add QLoRA specific configurations if needed
+        common_config.update({
+            "use_dora": config_dict.get("use_dora", False),  # DORA: Weight-Decomposed Low-Rank Adaptation
+        })
+    return LoraConfig(**common_config)
+    
+    
 
-    # Get values dynamicaly from user
+if __name__ == "__main__":
+    cfg = Configuration.from_args()
+
+    # Get values dynamically from user
     parser = argparse.ArgumentParser(description="Training for PaLiGemma")
     parser.add_argument('--model_id', type=str, required=True, default=cfg.model_id, help='Enter Huggingface Model ID')
     parser.add_argument('--dataset_id', type=str, required=True ,default=cfg.dataset_id, help='Enter Huggingface Dataset ID')
@@ -91,27 +114,69 @@ if __name__ == "__main__":
     parser.add_argument('--lr', type=float, default=cfg.learning_rate, help='Enter Learning Rate')
     parser.add_argument('--checkpoint_id', type=str, required=True, default=cfg.checkpoint_id, help='Enter Huggingface Repo ID to push model')
 
+
+    parser.add_argument('--peft_type', type=str, required=True, choices=["lora" , "qlora"] ,help='Enter peft type .for eg. lora , qlora ..etc')
+    parser.add_argument('--peft_config', type=str, default="peft_configs/lora_configs.yaml",
+                      help="Path to peft config YAML file")
+
+
+
+
+
     args = parser.parse_args()
     processor = AutoProcessor.from_pretrained(args.model_id)
     train_dataloader = get_dataloader(processor=processor, args=args, dtype=cfg.dtype)
 
-    logger.info("Getting model & turning only attention parameters to trainable")
+    logger.info("Getting model")
+    
+    
+    bnb_config = BitsAndBytesConfig(
+            load_in_4bit=True,
+            bnb_4bit_use_double_quant=True,
+            bnb_4bit_quant_type="nf4",
+            bnb_4bit_compute_dtype=cfg.dtype,
+        )
+
+    
+    
     model = Gemma3ForConditionalGeneration.from_pretrained(
         cfg.model_id,
         torch_dtype=cfg.dtype,
         device_map="cpu",
         attn_implementation="eager",
+        quantization_config=bnb_config if args.peft_type == "qlora" else None
     )
-    for name, param in model.named_parameters():
-        if "attn" in name:
-            param.requires_grad = True
-        else:
-            param.requires_grad = False
+    logger.info(f"Loading LoRA config from {args.peft_type}")
+
+
+
+
+    if args.peft_type == "lora":
+        with open(args.lora_config) as f:
+            lora_config_dict = yaml.safe_load(f)[f"{args.peft_type}config"]
+        
+        lora_config = get_peft_config(peft_type=args.peft_type , config_dict=lora_config_dict)
+        
+        model = get_peft_model(model, lora_config)
+        model.print_trainable_parameters()
+
+
+    if args.peft_type =='qlora':
+        
+        
+        with open(args.peft_config) as f:
+            qlora_config_dict = yaml.safe_load(f)[f"{args.peft_type}_config"]
+        
+        peft_config = get_peft_config(args.peft_type, qlora_config_dict)  
+        
+        model = prepare_model_for_kbit_training(model)
+        model = get_peft_model(model, peft_config)
+        model.print_trainable_parameters()
+            
 
     model.train()
     model.to(cfg.device)
 
-    # Credits to Sayak Paul for this beautiful expression
     params_to_train = list(filter(lambda x: x.requires_grad, model.parameters()))
     optimizer = torch.optim.AdamW(params_to_train, lr=args.lr)
 
