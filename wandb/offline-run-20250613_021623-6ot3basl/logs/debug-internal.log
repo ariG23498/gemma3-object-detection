@@ -1,0 +1,8 @@
+{"time":"2025-06-13T02:16:23.812623793+05:30","level":"INFO","msg":"stream: starting","core version":"0.20.1","symlink path":"/home/manodeep/projects/NN/neural_networks_repo/finetuning/gemma-3_lora/gemma3-object-detection/wandb/offline-run-20250613_021623-6ot3basl/logs/debug-core.log"}
+{"time":"2025-06-13T02:16:23.92172777+05:30","level":"WARN","msg":"GraphQL client is nil, skipping feature loading"}
+{"time":"2025-06-13T02:16:23.922117768+05:30","level":"INFO","msg":"stream: created new stream","id":"6ot3basl"}
+{"time":"2025-06-13T02:16:23.922151309+05:30","level":"INFO","msg":"stream: started","id":"6ot3basl"}
+{"time":"2025-06-13T02:16:23.922266365+05:30","level":"INFO","msg":"writer: Do: started","stream_id":"6ot3basl"}
+{"time":"2025-06-13T02:16:23.922377998+05:30","level":"INFO","msg":"handler: started","stream_id":"6ot3basl"}
+{"time":"2025-06-13T02:16:23.922420529+05:30","level":"INFO","msg":"sender: started","stream_id":"6ot3basl"}
+{"time":"2025-06-13T02:16:23.928666516+05:30","level":"INFO","msg":"Starting system monitor"}

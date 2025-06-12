@@ -104,7 +104,7 @@ def get_peft_config(peft_type: str, config_dict: dict) -> LoraConfig:
     
 
 if __name__ == "__main__":
-    cfg = Configuration.from_args()
+    cfg = Configuration()
 
     # Get values dynamically from user
     parser = argparse.ArgumentParser(description="Training for PaLiGemma")
@@ -129,14 +129,15 @@ if __name__ == "__main__":
 
     logger.info("Getting model")
     
-    
-    bnb_config = BitsAndBytesConfig(
-            load_in_4bit=True,
-            bnb_4bit_use_double_quant=True,
-            bnb_4bit_quant_type="nf4",
-            bnb_4bit_compute_dtype=cfg.dtype,
-        )
-
+    if args.peft_type == 'qlora':
+        bnb_config = BitsAndBytesConfig(
+                load_in_4bit=True,
+                bnb_4bit_use_double_quant=True,
+                bnb_4bit_quant_type="nf4",
+                bnb_4bit_compute_dtype=cfg.dtype,
+            )
+    else:
+        bnb_config = None
     
     
     model = Gemma3ForConditionalGeneration.from_pretrained(
@@ -146,14 +147,14 @@ if __name__ == "__main__":
         attn_implementation="eager",
         quantization_config=bnb_config if args.peft_type == "qlora" else None
     )
-    logger.info(f"Loading LoRA config from {args.peft_type}")
+    logger.info(f"Loading PeFT config from {args.peft_type}")
 
 
 
 
     if args.peft_type == "lora":
-        with open(args.lora_config) as f:
-            lora_config_dict = yaml.safe_load(f)[f"{args.peft_type}config"]
+        with open(args.peft_config) as f:
+            lora_config_dict = yaml.safe_load(f)[f"{args.peft_type}_config"]
         
         lora_config = get_peft_config(peft_type=args.peft_type , config_dict=lora_config_dict)
         

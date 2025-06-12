@@ -1,0 +1,46 @@
+{
+  "os": "Linux-6.11.0-26-generic-x86_64-with-glibc2.39",
+  "python": "CPython 3.12.3",
+  "startedAt": "2025-06-12T20:50:53.785044Z",
+  "args": [
+    "--model_id",
+    "google/gemma-3-4b-pt",
+    "--dataset_id",
+    "ariG23498/license-detection-paligemma",
+    "--batch_size",
+    "8",
+    "--lr",
+    "2e-5",
+    "--checkpoint_id",
+    "oreonmayo/gemma-3-4b-pt-object-detection-aug",
+    "--peft_type",
+    "lora",
+    "--peft_config",
+    "peft_configs/lora_configs.yaml"
+  ],
+  "program": "/home/manodeep/projects/NN/neural_networks_repo/finetuning/gemma-3_lora/gemma3-object-detection/finetune.py",
+  "codePath": "finetune.py",
+  "git": {
+    "remote": "https://github.com/Manodeepray/gemma3-object-detection",
+    "commit": "4d0d9cbaaaf2d548d7c42c7e4ec546c0d85e7143"
+  },
+  "root": "/home/manodeep/projects/NN/neural_networks_repo/finetuning/gemma-3_lora/gemma3-object-detection",
+  "host": "mayo",
+  "executable": "/home/manodeep/projects/NN/.venv/bin/python",
+  "codePathLocal": "finetune.py",
+  "cpu_count": 4,
+  "cpu_count_logical": 8,
+  "disk": {
+    "/": {
+      "total": "208557645824",
+      "used": "87174987776"
+    }
+  },
+  "memory": {
+    "total": "16297222144"
+  },
+  "cpu": {
+    "count": 4,
+    "countLogical": 8
+  }
+}

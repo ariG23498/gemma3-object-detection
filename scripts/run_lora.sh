@@ -1,5 +1,5 @@
 
-!#bin/bash
+#!bin/bash
 
 
 python finetune.py \
@@ -9,4 +9,4 @@ python finetune.py \
   --lr 2e-5 \
   --checkpoint_id oreonmayo/gemma-3-4b-pt-object-detection-aug \
   --peft_type lora \
-  --peft_config peft_configs/lora_configs.yaml \
+  --peft_config peft_configs/lora_configs.yaml 
