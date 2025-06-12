@@ -1,0 +1,15 @@
+qlora_config:
+  r: 64                  # Higher rank often works better with QLoRA
+  lora_alpha: 16
+  target_modules:
+    - "q_proj"
+    - "k_proj"
+    - "v_proj"
+    - "o_proj"
+    - "gate_proj"        # Additional modules for better performance
+    - "up_proj"
+    - "down_proj"
+  lora_dropout: 0.1      # Slightly higher dropout
+  bias: "none"
+  task_type: "CAUSAL_LM"
+  use_dora: true         # Enable DORA for better performance

@@ -1,0 +1,11 @@
+lora_config:
+  r: 8                 # Rank
+  lora_alpha: 16       # Scaling factor
+  target_modules:      # Modules to apply LoRA to
+    - "q_proj"
+    - "k_proj"
+    - "v_proj"
+    - "o_proj"
+  lora_dropout: 0.05   # Dropout probability
+  bias: "none"         # Bias type
+  task_type: "CAUSAL_LM"
