@@ -79,6 +79,9 @@ def train_model(model, optimizer, cfg:Configuration, train_dataloader):
     else:
         logger.info(f"Found dtype: {cfg.dtype}")
 
+
+    logger.info(f"config : {vars(cfg)}")    
+
     logger.info("Start training")
     for epoch in range(cfg.epochs):
         for idx, batch in enumerate(train_dataloader):
