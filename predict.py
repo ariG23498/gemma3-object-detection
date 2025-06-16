@@ -5,8 +5,8 @@ from datasets import load_dataset
 from torch.utils.data import DataLoader
 from transformers import AutoProcessor, Gemma3ForConditionalGeneration
 
-from config import Configuration
-from utils import test_collate_function, visualize_bounding_boxes
+from utils.config import Configuration
+from utils.utilities import test_collate_function, visualize_bounding_boxes
 
 os.makedirs("outputs", exist_ok=True)
 
@@ -23,7 +23,7 @@ def get_dataloader(processor):
 
 
 if __name__ == "__main__":
-    cfg = Configuration()
+    cfg = Configuration.from_args()
     processor = AutoProcessor.from_pretrained(cfg.checkpoint_id)
     model = Gemma3ForConditionalGeneration.from_pretrained(
         cfg.checkpoint_id,
