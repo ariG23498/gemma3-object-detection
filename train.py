@@ -1,9 +1,9 @@
 # Optional – Unsloth is only imported if the flag is set at runtime
-# try:
-#     from unsloth import FastModel
-# except ImportError:
-#     FastModel = None  # will be checked at runtime
-FastModel = None
+try:
+    from unsloth import FastModel
+except ImportError:
+    FastModel = None  # will be checked at runtime
+# FastModel = None
 
 import logging
 import wandb
@@ -150,7 +150,7 @@ def load_model(cfg:Configuration):
         )
         quant_args = {
             "quantization_config": bnb_config,
-            "device_map": "cpu",
+            "device_map": "auto",
         }
 
         model = Gemma3ForConditionalGeneration.from_pretrained(
