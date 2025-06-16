@@ -59,7 +59,7 @@ class Configuration:
         parser.add_argument("--model_id", type=str, default=cfg_dict["model_id"])
         parser.add_argument("--checkpoint_id", type=str, default=cfg_dict["checkpoint_id"])
         parser.add_argument("--device", type=str, choices=["cuda", "cpu"], default=cfg_dict["device"])
-        parser.add_argument("--dtype", type=str, choices=["float32", "float16", "bfloat16"], default="bfloat16")
+        parser.add_argument("--dtype", type=str, choices=["float32", "float16", "bfloat16"], default="float16")
         parser.add_argument("--batch_size", type=int, default=cfg_dict["batch_size"])
         parser.add_argument("--learning_rate", type=float, default=cfg_dict["learning_rate"])
         parser.add_argument("--epochs", type=int, default=cfg_dict["epochs"])

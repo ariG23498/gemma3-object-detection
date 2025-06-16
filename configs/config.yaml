@@ -1,15 +1,15 @@
 dataset_id: "ariG23498/license-detection-paligemma"
-model_id: "google/gemma-3-1b-pt"
+model_id: "google/gemma-3-4b-pt"
 checkpoint_id: "sergiopaniego/gemma-3-4b-pt-object-detection-aug"
 
 device: "cuda"
-dtype: "bfloat16"
+dtype: "float16"
 
-batch_size: 16
+batch_size: 1
 learning_rate: 2e-5
 epochs: 2
 
-finetune_method: "lora"   # FFT | lora | qlora
+finetune_method: "qlora"   # FFT | lora | qlora
 use_unsloth: false
 
 mm_tunable_parts:

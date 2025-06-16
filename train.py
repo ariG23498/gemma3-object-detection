@@ -10,7 +10,7 @@ from transformers import AutoProcessor, Gemma3ForConditionalGeneration
 
 from utils.config import Configuration
 from utils.utilities import train_collate_function
-import argparse
+from peft import get_peft_config, get_peft_model, LoraConfig
 import albumentations as A
 
 logging.basicConfig(
@@ -44,15 +44,16 @@ def get_dataloader(processor, args, dtype):
 
 
 def train_model(model, optimizer, cfg:Configuration, train_dataloader):
-    logger.info("Start training")
     global_step = 0
-
-    
     use_fp16 = False
-    if cfg.dtype in ["float16", "bfloat16"]:
+    if cfg.dtype in [torch.float16, torch.bfloat16]:
         scaler = GradScaler()
         use_fp16 = True
+        logger.info("using fp16 to scale loss")
+    else:
+        logger.info(f"Found dtype: {cfg.dtype}")
 
+    logger.info("Start training")
     for epoch in range(cfg.epochs):
         for idx, batch in enumerate(train_dataloader):
             optimizer.zero_grad() # zero grad before every batch
@@ -79,40 +80,49 @@ def train_model(model, optimizer, cfg:Configuration, train_dataloader):
     return model
 
 
+def load_model(cfg:Configuration):
+
+    model = Gemma3ForConditionalGeneration.from_pretrained(
+        cfg.model_id,
+        torch_dtype=cfg.dtype,
+        device_map="cpu",
+        attn_implementation="eager",
+    )
+
+    if cfg.finetune_method in {"lora", "qlora"}:
+        lcfg = cfg.lora
+        lora_cfg = LoraConfig(
+            r=lcfg.r,
+            lora_alpha=lcfg.alpha,
+            target_modules=lcfg.target_modules,
+            lora_dropout=lcfg.dropout,
+            bias="none",
+        )
+        
+        model = get_peft_model(model, lora_cfg)
+        model.print_trainable_parameters()
+
+    elif cfg.finetune_method == "FFT":
+        # Only unfreeze requested model parts (e.g. multi_modal_projector)
+        for n, p in model.named_parameters():
+            p.requires_grad = any(part in n for part in cfg.mm_tunable_parts)
+            print(f"{n} will be finetuned")
+    else:
+        raise ValueError(f"Unknown finetune_method: {cfg.finetune_method}")
+    
+    return model
+
+
 if __name__ == "__main__":
     # 1. Parse CLI + YAMLs into config
     cfg = Configuration.from_args()
 
-    # # Get values dynamicaly from user
-    # parser = argparse.ArgumentParser(description="Training for PaLiGemma")
-    # parser.add_argument('--model_id', type=str, required=True, default=cfg.model_id, help='Enter Huggingface Model ID')
-    # parser.add_argument('--dataset_id', type=str, required=True ,default=cfg.dataset_id, help='Enter Huggingface Dataset ID')
-    # parser.add_argument('--batch_size', type=int, default=cfg.batch_size, help='Enter Batch Size')
-    # parser.add_argument('--lr', type=float, default=cfg.learning_rate, help='Enter Learning Rate')
-    # parser.add_argument('--checkpoint_id', type=str, required=True, default=cfg.checkpoint_id, help='Enter Huggingface Repo ID to push model')
-
-    # args = parser.parse_args()
     processor = AutoProcessor.from_pretrained(cfg.model_id)
     train_dataloader = get_dataloader(processor=processor, args=cfg, dtype=cfg.dtype)
 
     logger.info("Getting model & turning only attention parameters to trainable")
-    model = Gemma3ForConditionalGeneration.from_pretrained(
-        cfg.model_id,
-        torch_dtype=cfg.dtype,
-        device_map="auto",
-        attn_implementation="eager",
-    )
-
-    # No need to finetune entire model (especially base language model) just use cfg.mm_tunable_parts
-    # for name, param in model.named_parameters():
-    #     if "attn" in name:
-    #         param.requires_grad = True
-    #     else:
-    #         param.requires_grad = False
-    for layer_name, param in model.named_parameters():
-        param.requires_grad = any(tune_part in layer_name for tune_part in cfg.mm_tunable_parts)
-
-
+    model = load_model(cfg)
+    
     model.train()
     model.to(cfg.device)
 
