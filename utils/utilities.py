@@ -87,7 +87,7 @@ def train_collate_function_unsloth(batch_of_samples, tokenizer, dtype, transform
 
     # Mask out padding, image tokens, and other special tokens from loss
     image_token_id = [
-        tokenizer.convert_tokens_to_ids(tokenizer.boi_token)
+        tokenizer.tokenizer.convert_tokens_to_ids(tokenizer.boi_token)
     ]
     labels[labels == tokenizer.pad_token_id] = -100
     for tok_id in image_token_id:

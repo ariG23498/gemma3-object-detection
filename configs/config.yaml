@@ -3,7 +3,7 @@ model_id: "google/gemma-3-4b-pt"
 checkpoint_id: "sergiopaniego/gemma-3-4b-pt-object-detection-aug"
 
 device: "cuda"
-dtype: "float16"
+dtype: "bfloat16"
 
 batch_size: 1
 learning_rate: 2e-5

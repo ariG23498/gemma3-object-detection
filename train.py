@@ -1,8 +1,9 @@
 # Optional – Unsloth is only imported if the flag is set at runtime
-try:
-    from unsloth import FastModel
-except ImportError:
-    FastModel = None  # will be checked at runtime
+# try:
+#     from unsloth import FastModel
+# except ImportError:
+#     FastModel = None  # will be checked at runtime
+FastModel = None
 
 import logging
 import wandb
@@ -27,7 +28,7 @@ logger = logging.getLogger(__name__)
 
 
 augmentations = A.Compose([
-    A.Resize(height=896, width=896),
+    A.Resize(height=224, width=224),
     A.HorizontalFlip(p=0.5),
     A.ColorJitter(p=0.2),
 ], bbox_params=A.BboxParams(format='coco', label_fields=['category_ids'], filter_invalid_bboxes=True))
@@ -149,7 +150,7 @@ def load_model(cfg:Configuration):
         )
         quant_args = {
             "quantization_config": bnb_config,
-            "device_map": "auto",
+            "device_map": "cpu",
         }
 
         model = Gemma3ForConditionalGeneration.from_pretrained(
