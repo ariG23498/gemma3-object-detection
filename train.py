@@ -17,7 +17,7 @@ from transformers import AutoProcessor, Gemma3ForConditionalGeneration
 from transformers import BitsAndBytesConfig
 
 from utils.config import Configuration
-from utils.utilities import train_collate_function, train_collate_function_unsloth, save_best_model, push_to_hub
+from utils.utilities import train_collate_function, train_collate_function_unsloth, save_best_model, push_to_hub, load_saved_model
 from peft import get_peft_config, get_peft_model, LoraConfig
 import albumentations as A
 
@@ -103,7 +103,7 @@ def validate_all(model, val_loader, device, use_fp16, val_batches=5):
     model.train()
     return sum(losses) / len(losses) if len(losses)> 0 else 0
 
-def train_model(model, optimizer, cfg, train_loader, val_loader=None, val_every=5, push_hub=False):
+def train_model(model, optimizer, cfg, train_loader, val_loader=None, val_every=5, max_step=10):
     use_fp16 = cfg.dtype in [torch.float16, torch.bfloat16]
     scaler = GradScaler() if use_fp16 else None
     global_step, best_val_loss = 0, float("inf")
@@ -123,6 +123,9 @@ def train_model(model, optimizer, cfg, train_loader, val_loader=None, val_every=
             if val_loss < best_val_loss:
                 best_val_loss = val_loss
                 save_best_model(model, cfg, tokenizer, cfg.finetune_method in {"lora", "qlora"}, logger)
+
+            if global_step>max_step:
+                break
 
     return model
 
@@ -164,7 +167,7 @@ def load_model(cfg:Configuration):
     else:
         quant_args = {}
         # Enable quantization only for QLoRA or if specifically requested for LoRA
-        if cfg.finetune_method in {"lora", "qlora"}:
+        if cfg.finetune_method in {"qlora"}:
             bnb_config = BitsAndBytesConfig(
                 load_in_4bit=True,
                 bnb_4bit_use_double_quant=True,
@@ -181,8 +184,8 @@ def load_model(cfg:Configuration):
         )
 
         if cfg.finetune_method in {"lora", "qlora"}:
-            for n, p in model.named_parameters():
-                p.requires_grad = False
+            # for n, p in model.named_parameters():
+            #     p.requires_grad = False
 
             lora_cfg = LoraConfig(
                 r=lcfg.r,
@@ -239,12 +242,14 @@ if __name__ == "__main__":
         config=vars(cfg),
     )
 
-    train_model(model, optimizer, cfg, train_dataloader, validation_dataloader,val_every=10, push_hub=True)
+    train_model(model, optimizer, cfg, train_dataloader, validation_dataloader,val_every=5, max_step=10)
 
+    # Loading best model back
+    model, tokenizer = load_saved_model(cfg, is_lora=cfg.finetune_method in {"lora", "qlora"}, device="cuda", logger=logger)
+    logger.info(f"Pushing to hub at: {cfg.checkpoint_id}")
     # TODO add flag to config (code tested and its working)
     # if push_hub:
-    #     logger.info(f"Pushing to hub at: {cfg.checkpoint_id}")
-    #     push_to_hub(model, cfg, tokenizer, cfg.finetune_method in {"lora", "qlora"})
+    push_to_hub(model, cfg, tokenizer, cfg.finetune_method in {"lora", "qlora"})
 
     wandb.finish()
     logger.info("Train finished")
