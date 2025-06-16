@@ -7,6 +7,7 @@ from torch.amp import autocast, GradScaler
 from datasets import load_dataset
 from torch.utils.data import DataLoader
 from transformers import AutoProcessor, Gemma3ForConditionalGeneration
+from transformers import BitsAndBytesConfig
 
 from utils.config import Configuration
 from utils.utilities import train_collate_function
@@ -82,14 +83,33 @@ def train_model(model, optimizer, cfg:Configuration, train_dataloader):
 
 def load_model(cfg:Configuration):
 
+    bnb_config = None
+    quant_args = {}
+    
+    if cfg.finetune_method == "qlora":
+        bnb_config = BitsAndBytesConfig(
+            load_in_4bit=True,
+            bnb_4bit_use_double_quant=True,
+            bnb_4bit_quant_type="nf4",
+            bnb_4bit_compute_dtype=cfg.dtype,
+        )
+        quant_args.update({
+            "quantization_config": bnb_config,
+            "device_map": "auto",
+        })
+        logger.info("Loaded model in 4-bit with bitsandbytes")
+
     model = Gemma3ForConditionalGeneration.from_pretrained(
         cfg.model_id,
         torch_dtype=cfg.dtype,
-        device_map="cpu",
         attn_implementation="eager",
+        **quant_args,
     )
 
     if cfg.finetune_method in {"lora", "qlora"}:
+        for n, p in model.named_parameters():
+            p.requires_grad = False
+
         lcfg = cfg.lora
         lora_cfg = LoraConfig(
             r=lcfg.r,
@@ -97,6 +117,7 @@ def load_model(cfg:Configuration):
             target_modules=lcfg.target_modules,
             lora_dropout=lcfg.dropout,
             bias="none",
+            task_type="CAUSAL_LM",
         )
         
         model = get_peft_model(model, lora_cfg)
