@@ -118,14 +118,15 @@ def train_model(model, optimizer, cfg, train_loader, val_loader=None, val_every=
                 val_loss = validate_all(model, val_loader, cfg.device, use_fp16)
                 logger.info(f"Step:{global_step} Val Loss:{val_loss:.4f}")
                 wandb.log({"val/loss": val_loss, "epoch": epoch}, step=global_step)
-            global_step += 1
 
             if val_loss < best_val_loss:
                 best_val_loss = val_loss
                 save_best_model(model, cfg, tokenizer, cfg.finetune_method in {"lora", "qlora"}, logger)
 
-            if global_step>max_step:
+            if global_step>max_step-1:
                 break
+
+            global_step += 1
 
     return model
 
@@ -242,7 +243,7 @@ if __name__ == "__main__":
         config=vars(cfg),
     )
 
-    train_model(model, optimizer, cfg, train_dataloader, validation_dataloader,val_every=5, max_step=10)
+    train_model(model, optimizer, cfg, train_dataloader, validation_dataloader,val_every=5, max_step=2)
 
     # Loading best model back
     model, tokenizer = load_saved_model(cfg, is_lora=cfg.finetune_method in {"lora", "qlora"}, device="cuda", logger=logger)

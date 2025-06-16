@@ -182,6 +182,8 @@ def push_to_hub(model, cfg, tokenizer=None, is_lora=False):
     if tokenizer is not None:
         tokenizer.push_to_hub(cfg.checkpoint_id)
 
+
+
 def save_best_model(model, cfg, tokenizer=None, is_lora=False, logger=None):
     """Save LoRA adapter or full model based on config."""
     save_path = f"checkpoints/{cfg.checkpoint_id}_best"
@@ -204,17 +206,29 @@ def load_saved_model(cfg, is_lora=False, device=None, logger=None):
     save_path = f"checkpoints/{cfg.checkpoint_id}_best"
     tokenizer = None
 
-    if is_lora:
+    if cfg.use_unsloth:
+
         if logger: logger.info(f"Loading LoRA adapter from {save_path}")
-        # Load base model first, then LoRA weights
-        base_model = AutoModel.from_pretrained(cfg.model_id, device_map=device or "auto")
-        model = PeftModel.from_pretrained(base_model, save_path, device_map=device or "auto")
-        if os.path.exists(os.path.join(save_path, "tokenizer_config.json")):
-            tokenizer = AutoTokenizer.from_pretrained(save_path)
+
+        from unsloth import FastModel
+        model, tokenizer = FastModel.from_pretrained(
+            model_name = save_path, # YOUR MODEL YOU USED FOR TRAINING
+            load_in_4bit = True, # Set to False for 16bit LoRA
+        )
+        return model, tokenizer
+
     else:
-        if logger: logger.info(f"Loading full model weights from {save_path}.pt")
-        model = AutoModel.from_pretrained(cfg.model_id, device_map=device or "auto")
-        model.load_state_dict(torch.load(f"{save_path}.pt", map_location=device or "cpu"))
-        if os.path.exists(os.path.join(save_path, "tokenizer_config.json")):
-            tokenizer = AutoTokenizer.from_pretrained(save_path)
-    return model, tokenizer
+        if is_lora:
+            if logger: logger.info(f"Loading LoRA adapter from {save_path}")
+            # Load base model first, then LoRA weights
+            base_model = AutoModel.from_pretrained(cfg.model_id, device_map=device or "auto")
+            model = PeftModel.from_pretrained(base_model, save_path, device_map=device or "auto")
+            if os.path.exists(os.path.join(save_path, "tokenizer_config.json")):
+                tokenizer = AutoTokenizer.from_pretrained(save_path)
+        else:
+            if logger: logger.info(f"Loading full model weights from {save_path}.pt")
+            model = AutoModel.from_pretrained(cfg.model_id, device_map=device or "auto")
+            model.load_state_dict(torch.load(f"{save_path}.pt", map_location=device or "cpu"))
+            if os.path.exists(os.path.join(save_path, "tokenizer_config.json")):
+                tokenizer = AutoTokenizer.from_pretrained(save_path)
+        return model, tokenizer
