@@ -5,15 +5,16 @@ checkpoint_id: "ajaymin28/Gemma3_ObjeDet"
 device: "cuda"
 dtype: "bfloat16"
 
-batch_size: 1
+batch_size: 16
 learning_rate: 2e-5
-epochs: 2
+epochs: 1
 
 finetune_method: "qlora"   # FFT | lora | qlora
 use_unsloth: false
 
-mm_tunable_parts:
+
+mm_tunable_parts: # Only for the FFT 
   - multi_modal_projector
-  # - vision_tower
-  # - language_model
+  - vision_tower
+  - language_model
 project_name:  "Gemma3_LoRA"

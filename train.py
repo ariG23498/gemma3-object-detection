@@ -87,17 +87,19 @@ def step(model, batch, device, use_fp16, optimizer=None, scaler=None):
             optimizer.step()
     return loss.item()
 
-def validate_all(model, val_loader, device, use_fp16):
+def validate_all(model, val_loader, device, use_fp16, val_bathes=None):
     model.eval()
     with torch.no_grad():
-        n_batches = 2
-        losses = []
-        for i, batch in enumerate(val_loader):
-            if i >= n_batches:
-                break
-            losses.append(step(model, batch, device, use_fp16))
-
-        # losses = [step(model, batch, device, use_fp16) for batch in val_loader]
+        if val_bathes:
+            ## TODO: This logic is Temp and should be removed in final clean up
+            n_batches = 10
+            losses = []
+            for i, batch in enumerate(val_loader):
+                if i >= n_batches:
+                    break
+                losses.append(step(model, batch, device, use_fp16))
+        else:
+            losses = [step(model, batch, device, use_fp16) for batch in val_loader]
     model.train()
     return sum(losses) / len(losses) if len(losses)> 0 else 0
 
@@ -121,9 +123,6 @@ def train_model(model, optimizer, cfg, train_loader, val_loader=None, val_every=
             if val_loss < best_val_loss:
                 best_val_loss = val_loss
                 save_best_model(model, cfg, tokenizer, cfg.finetune_method in {"lora", "qlora"}, logger)
-                if push_hub:
-                    logger.info(f"Pushing to hub at: {cfg.checkpoint_id}")
-                    push_to_hub(model, cfg, tokenizer, cfg.finetune_method in {"lora", "qlora"})
 
     return model
 
@@ -163,17 +162,16 @@ def load_model(cfg:Configuration):
 
 
     else:
-
-        bnb_config = BitsAndBytesConfig(
-            load_in_4bit=True,
-            bnb_4bit_use_double_quant=True,
-            bnb_4bit_quant_type="fp4",
-            bnb_4bit_compute_dtype=cfg.dtype,
-        )
-        quant_args = {
-            "quantization_config": bnb_config,
-            "device_map": "auto",
-        }
+        quant_args = {}
+        # Enable quantization only for QLoRA or if specifically requested for LoRA
+        if cfg.finetune_method in {"lora", "qlora"}:
+            bnb_config = BitsAndBytesConfig(
+                load_in_4bit=True,
+                bnb_4bit_use_double_quant=True,
+                bnb_4bit_quant_type="fp4",
+                bnb_4bit_compute_dtype=cfg.dtype,
+            )
+            quant_args = {"quantization_config": bnb_config, "device_map": "auto"}
 
         model = Gemma3ForConditionalGeneration.from_pretrained(
             cfg.model_id,
@@ -241,7 +239,12 @@ if __name__ == "__main__":
         config=vars(cfg),
     )
 
-    train_model(model, optimizer, cfg, train_dataloader, validation_dataloader, push_hub=True)
+    train_model(model, optimizer, cfg, train_dataloader, validation_dataloader,val_every=10, push_hub=True)
+
+    # TODO add flag to config (code tested and its working)
+    # if push_hub:
+    #     logger.info(f"Pushing to hub at: {cfg.checkpoint_id}")
+    #     push_to_hub(model, cfg, tokenizer, cfg.finetune_method in {"lora", "qlora"})
 
     wandb.finish()
     logger.info("Train finished")
