@@ -103,7 +103,7 @@ def train_model(model, optimizer, cfg:Configuration, train_dataloader):
             
             if idx % 100 == 0:
                 logger.info(f"Epoch: {epoch} Iter: {idx} Loss: {loss.item():.4f}")
-                wandb.log({"train/loss": loss.item(), "epoch": epoch}, step=global_step)
+                # wandb.log({"train/loss": loss.item(), "epoch": epoch}, step=global_step)
             global_step += 1
 
     return model
