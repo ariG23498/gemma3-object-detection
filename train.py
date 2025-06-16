@@ -56,7 +56,7 @@ def train_model(model, optimizer, cfg:Configuration, train_dataloader):
     for epoch in range(cfg.epochs):
         for idx, batch in enumerate(train_dataloader):
             optimizer.zero_grad() # zero grad before every batch
-            
+
             if use_fp16:
                 with autocast(device_type=cfg.device):
                     outputs = model(**batch.to(model.device))
@@ -99,7 +99,7 @@ if __name__ == "__main__":
     model = Gemma3ForConditionalGeneration.from_pretrained(
         cfg.model_id,
         torch_dtype=cfg.dtype,
-        device_map="cpu",
+        device_map="auto",
         attn_implementation="eager",
     )
 
