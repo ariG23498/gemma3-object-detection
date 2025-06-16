@@ -1,6 +1,6 @@
 dataset_id: "ariG23498/license-detection-paligemma"
 model_id: "google/gemma-3-4b-pt"
-checkpoint_id: "sergiopaniego/gemma-3-4b-pt-object-detection-aug"
+checkpoint_id: "ajaymin28/Gemma3_ObjeDet"
 
 device: "cuda"
 dtype: "bfloat16"
@@ -16,3 +16,4 @@ mm_tunable_parts:
   - multi_modal_projector
   # - vision_tower
   # - language_model
+project_name:  "Gemma3_LoRA"

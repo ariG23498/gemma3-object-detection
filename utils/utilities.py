@@ -1,9 +1,10 @@
+import os
 import re
 import argparse
 import matplotlib.pyplot as plt
 import numpy as np
 from PIL import ImageDraw
-
+import torch
 from utils.create_dataset import format_objects
 
 def parse_paligemma_label(label, width, height):
@@ -167,3 +168,27 @@ def str2bool(v):
         return False
     else:
         raise argparse.ArgumentTypeError('Boolean value expected.')
+
+def push_to_hub(model, cfg, tokenizer=None, is_lora=False):
+    """
+    Push model to huggingface
+    """
+    push_kwargs = {}
+    if tokenizer is not None:
+        push_kwargs['tokenizer'] = tokenizer
+    model.push_to_hub(cfg.checkpoint_id, **push_kwargs)
+    if tokenizer is not None:
+        tokenizer.push_to_hub(cfg.checkpoint_id)
+
+def save_best_model(model, cfg, tokenizer=None, is_lora=False, logger=None):
+    """Save LoRA adapter or full model based on config."""
+    save_path = f"checkpoints/{cfg.checkpoint_id}_best"
+    os.makedirs(save_path, exist_ok=True)
+    if is_lora:
+        if logger: logger.info(f"Saving LoRA adapter to {save_path}")
+        model.save_pretrained(save_path)
+        if tokenizer is not None:
+            tokenizer.save_pretrained(save_path)
+    else:
+        if logger: logger.info(f"Saving full model weights to {save_path}.pt")
+        torch.save(model.state_dict(), f"{save_path}.pt")

@@ -42,6 +42,8 @@ class Configuration:
     mm_tunable_parts: List[str] = field(default_factory=lambda: ["multi_modal_projector"]) # vision_tower,language_model
     lora: LoRAConfig = field(default_factory=LoRAConfig)
 
+    project_name: str = "Gemma3_LoRA"
+
     @classmethod
     def load(cls, main_cfg_path="configs/config.yaml", lora_cfg_path="configs/lora_config.yaml"):
         base_cfg = OmegaConf.load(main_cfg_path)
@@ -74,6 +76,8 @@ class Configuration:
         parser.add_argument("--lora.target_modules", type=str, default=",".join(cfg_dict["lora"]["target_modules"]))
         parser.add_argument("--lora.max_seq_length", type=int, default=cfg_dict["lora"]["max_seq_length"])
 
+        parser.add_argument("--wandb_project", type=str, default=cfg_dict["project_name"])
+
         args = parser.parse_args()
 
         dtype_map = {
@@ -103,4 +107,5 @@ class Configuration:
             use_unsloth=args.use_unsloth,
             mm_tunable_parts=[x.strip() for x in args.mm_tunable_parts.split(',')],
             lora=lora_config,
+            project_name=args.wandb_project
         )
