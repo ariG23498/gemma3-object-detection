@@ -51,6 +51,54 @@ def visualize_bounding_boxes(image, label, width, height, name):
     plt.show()
     plt.close()
 
+def train_collate_function_unsloth(batch_of_samples, tokenizer, dtype, transform=None):
+    """
+    unsloth
+    """
+    images = []
+    prompts = []
+    for sample in batch_of_samples:
+        if transform:
+            transformed = transform(
+                image=np.array(sample["image"]),
+                bboxes=sample["objects"]["bbox"],
+                category_ids=sample["objects"]["category"]
+            )
+            sample["image"] = transformed["image"]
+            sample["objects"]["bbox"] = transformed["bboxes"]
+            sample["objects"]["category"] = transformed["category_ids"]
+            sample["height"] = sample["image"].shape[0]
+            sample["width"] = sample["image"].shape[1]
+            sample['label_for_paligemma'] = format_objects(sample)['label_for_paligemma'] 
+        images.append([sample["image"]])
+        prompts.append(
+            f"{tokenizer.boi_token} detect \n\n{sample['label_for_paligemma']} {tokenizer.eos_token}"
+        )
+
+    # Use tokenizer directly (Unsloth tokenizer supports vision inputs for Gemma3)
+    batch = tokenizer(
+        images=images, 
+        text=prompts, 
+        return_tensors="pt", 
+        padding=True
+    )
+
+    labels = batch["input_ids"].clone()
+
+    # Mask out padding, image tokens, and other special tokens from loss
+    image_token_id = [
+        tokenizer.convert_tokens_to_ids(tokenizer.boi_token)
+    ]
+    labels[labels == tokenizer.pad_token_id] = -100
+    for tok_id in image_token_id:
+        labels[labels == tok_id] = -100
+    labels[labels == 262144] = -100  # If this ID is used for your "unused" special token
+
+    batch["labels"] = labels
+    if "pixel_values" in batch:
+        batch["pixel_values"] = batch["pixel_values"].to(dtype)
+
+    return batch
 
 def train_collate_function(batch_of_samples, processor, dtype, transform=None):
     images = []
