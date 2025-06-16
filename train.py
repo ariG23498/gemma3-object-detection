@@ -83,26 +83,22 @@ def train_model(model, optimizer, cfg:Configuration, train_dataloader):
 
 def load_model(cfg:Configuration):
 
-    bnb_config = None
-    quant_args = {}
-    
-    if cfg.finetune_method == "qlora":
-        bnb_config = BitsAndBytesConfig(
-            load_in_4bit=True,
-            bnb_4bit_use_double_quant=True,
-            bnb_4bit_quant_type="nf4",
-            bnb_4bit_compute_dtype=cfg.dtype,
-        )
-        quant_args.update({
-            "quantization_config": bnb_config,
-            "device_map": "auto",
-        })
-        logger.info("Loaded model in 4-bit with bitsandbytes")
+    bnb_config = BitsAndBytesConfig(
+        load_in_4bit=True,
+        bnb_4bit_use_double_quant=True,
+        bnb_4bit_quant_type="nf4",
+        bnb_4bit_compute_dtype=cfg.dtype,
+    )
+    quant_args = {
+        "quantization_config": bnb_config,
+        "device_map": "auto",
+    }
 
     model = Gemma3ForConditionalGeneration.from_pretrained(
         cfg.model_id,
         torch_dtype=cfg.dtype,
         attn_implementation="eager",
+        device_map="auto",
         **quant_args,
     )
 
@@ -122,6 +118,7 @@ def load_model(cfg:Configuration):
         
         model = get_peft_model(model, lora_cfg)
         model.print_trainable_parameters()
+        torch.cuda.empty_cache()
 
     elif cfg.finetune_method == "FFT":
         # Only unfreeze requested model parts (e.g. multi_modal_projector)
