@@ -87,12 +87,12 @@ def step(model, batch, device, use_fp16, optimizer=None, scaler=None):
             optimizer.step()
     return loss.item()
 
-def validate_all(model, val_loader, device, use_fp16, val_bathes=None):
+def validate_all(model, val_loader, device, use_fp16, val_batches=5):
     model.eval()
     with torch.no_grad():
-        if val_bathes:
+        if val_batches:
             ## TODO: This logic is Temp and should be removed in final clean up
-            n_batches = 10
+            n_batches = val_batches
             losses = []
             for i, batch in enumerate(val_loader):
                 if i >= n_batches:
