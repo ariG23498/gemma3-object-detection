@@ -11,7 +11,10 @@ target_modules:
   - gate_proj
 max_seq_length: 2048  # Unsloth will RoPE-scale
 
-# LoRA-specific: no quantization
-load_in_4bit: false
+# QLoRA-specific: quantization enabled
+load_in_4bit: true
 load_in_8bit: false
-quantization_config: null
+quantization_config:
+  bnb_4bit_use_double_quant: true
+  bnb_4bit_quant_type: "nf4"
+  bnb_4bit_compute_dtype: "bfloat16"

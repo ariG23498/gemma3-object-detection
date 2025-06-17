@@ -14,7 +14,7 @@ def str2bool(v):
 @dataclass
 class UserLoRAConfig:
     r: int = 32
-    alpha: int = 64
+    alpha: int = 32
     dropout: float = 0.05
     target_modules: List[str] = field(default_factory=lambda: [
         "q_proj", "k_proj", "v_proj", "o_proj",
@@ -29,17 +29,17 @@ class UserLoRAConfig:
 @dataclass
 class Configuration:
     dataset_id: str = "ariG23498/license-detection-paligemma"
-    model_id: str = "google/gemma-3-4b-pt"
-    checkpoint_id: str = "sergiopaniego/gemma-3-4b-pt-object-detection-aug"
+    model_id: str = "unsloth/gemma-3-4b-it" #"google/gemma-3-4b-pt"
+    checkpoint_id: str = "ajaymin28/Gemma3_ObjeDet"
     push_model_to_hub: bool = False
     device: str = "cuda" if torch.cuda.is_available() else "cpu"
     dtype: torch.dtype = torch.bfloat16
-    validate_steps_freq: int = 500
+    validate_steps_freq: int = 10
     batch_size: int = 16
     learning_rate: float = 2e-5
-    epochs: int = 2
-    max_step_to_train: int = 5000 # if model converges before training one epoch, set to 0 or -1 to disable
-    finetune_method: str = "FFT"  # FFT | lora | qlora
+    epochs: int = 1
+    max_step_to_train: int = 100 # if model converges before training one epoch, set to 0 or -1 to disable
+    finetune_method: str = "lora"  # FFT | lora | qlora
     use_unsloth: bool = False
     mm_tunable_parts: List[str] = field(default_factory=lambda: ["multi_modal_projector"]) # vision_tower,language_model
     lora: UserLoRAConfig = field(default_factory=UserLoRAConfig)
@@ -82,7 +82,7 @@ class Configuration:
         parser.add_argument("--lora.load_in_4bit", type=str2bool,default=cfg_dict["lora"]["load_in_4bit"])
         parser.add_argument("--lora.load_in_8bit", type=str2bool,default=cfg_dict["lora"]["load_in_8bit"])
 
-        parser.add_argument("--wandb_project_name", type=str, default=cfg_dict["project_name"])
+        parser.add_argument("--wandb_project_name", type=str, default=cfg_dict["wandb_project_name"])
 
         args = parser.parse_args()
 
