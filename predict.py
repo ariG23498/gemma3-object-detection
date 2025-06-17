@@ -63,7 +63,7 @@ if __name__ == "__main__":
     file_count = 0
     for output_text, sample_image in zip(decoded, sample_images):
         image = sample_image[0]
-        width, height, _ = image.shape
+        height, width, _ = image.shape
         try:
             visualize_bounding_boxes(
                 image, output_text, width, height, f"outputs/output_{file_count}.png"
