@@ -98,7 +98,7 @@ def convert_to_detection_string(bboxs, image_width, image_height, cats):
 
     detection_strings = []
     for bbox, cat in zip(bboxs, cats):
-        x1, y1, x2, y2 = coco_to_xyxy(bbox)
+        x1, y1, x2, y2 = bbox
         name = coco_cat_to_name(cat)
         locs = [
             format_location(y1, image_height),
