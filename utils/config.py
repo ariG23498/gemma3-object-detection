@@ -12,7 +12,7 @@ def str2bool(v):
 
 
 @dataclass
-class LoRAConfig:
+class UserLoRAConfig:
     r: int = 32
     alpha: int = 64
     dropout: float = 0.05
@@ -42,13 +42,13 @@ class Configuration:
     finetune_method: str = "FFT"  # FFT | lora | qlora
     use_unsloth: bool = False
     mm_tunable_parts: List[str] = field(default_factory=lambda: ["multi_modal_projector"]) # vision_tower,language_model
-    lora: LoRAConfig = field(default_factory=LoRAConfig)
+    lora: UserLoRAConfig = field(default_factory=UserLoRAConfig)
     wandb_project_name: str = "Gemma3_LoRA"
 
     @classmethod
     def load(cls, main_cfg_path="configs/config.yaml", lora_cfg_path="configs/lora_config.yaml"):
         base_cfg = OmegaConf.load(main_cfg_path)
-        lora_cfg = OmegaConf.load(lora_cfg_path)
+        lora_cfg = OmegaConf.load(lora_cfg_path) # TODO: Merge config into one, refer to hydra config.
         base_cfg.lora = lora_cfg
         return OmegaConf.to_container(base_cfg, resolve=True)
 
@@ -92,7 +92,7 @@ class Configuration:
             "bfloat16": torch.bfloat16,
         }
 
-        lora_config = LoRAConfig(
+        lora_config = UserLoRAConfig(
             r=args.__dict__["lora.r"],
             alpha=args.__dict__["lora.alpha"],
             dropout=args.__dict__["lora.dropout"],
@@ -102,6 +102,7 @@ class Configuration:
             load_in_8bit=args.__dict__["lora.load_in_8bit"],
         )
 
+        # TODO handle this long list, probably migrate to hydra conf.
         return cls(
             dataset_id=args.dataset_id,
             model_id=args.model_id,

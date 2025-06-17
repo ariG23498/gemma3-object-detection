@@ -1,14 +1,20 @@
-# Optional – comment this out if you are not planinng to use unsloth
-try:
-    from unsloth import FastModel
-except ImportError:
-    FastModel = None  # will be checked at runtime
-# FastModel = None  # uncomment this line when commenting above lines
 
 import logging
+
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+)
+logger = logging.getLogger(__name__)
+
+FastModel = None
+# Optional – comment below imports if you are not planinng to use unsloth
+try: from unsloth import FastModel
+except ImportError as e: logger.log(f"Unsloth import error : {e}")
+except NotImplementedError as e: logger.log(f"Unsloth NotImplementedError error : {e}")
+    
+
 import wandb
 from functools import partial
-import os
 import torch
 from torch.amp import autocast, GradScaler
 from datasets import load_dataset
@@ -17,14 +23,10 @@ from transformers import AutoProcessor, Gemma3ForConditionalGeneration
 from transformers import BitsAndBytesConfig
 
 from utils.config import Configuration
-from utils.utilities import train_collate_function, train_collate_function_unsloth, save_best_model, push_to_hub, load_saved_model
+from utils.utilities import train_collate_function, train_collate_function_unsloth
+from utils.utilities import save_best_model, push_to_hub, load_saved_model
 from peft import get_peft_config, get_peft_model, LoraConfig
 import albumentations as A
-
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-)
-logger = logging.getLogger(__name__)
 
 
 augmentations = A.Compose([
@@ -33,6 +35,7 @@ augmentations = A.Compose([
     A.ColorJitter(p=0.2),
 ], bbox_params=A.BboxParams(format='coco', label_fields=['category_ids'], filter_invalid_bboxes=True))
 
+# TODO: Delete this after testing get_dataloader() with is_unsloth=True flag
 # def get_dataloader_unsloth(tokenizer, args, dtype, split="train"):
 #     logger.info("Fetching the dataset")
 #     train_dataset = load_dataset(args.dataset_id, split=split)  # or cfg.dataset_id
@@ -95,8 +98,11 @@ def step(model, batch, device, use_fp16, optimizer=None, scaler=None):
 
 def validate_all(model, val_loader, cfg, use_fp16,val_batches=5):
 
+    if cfg.use_unsloth and FastModel is not None:
+        FastModel.for_inference(model) # Enable for inference!
+    else:
+        model.eval()
 
-    model.eval()
     with torch.no_grad():
         if val_batches:
             ## TODO: This logic is Temp and should be removed in final clean up
@@ -129,7 +135,7 @@ def train_model(model, optimizer, cfg:Configuration, train_loader, val_loader=No
                 logger.info(f"Epoch:{epoch} Step:{global_step} Loss:{loss:.4f}")
                 wandb.log({"train/loss": loss, "epoch": epoch}, step=global_step)
             if val_loader and global_step % cfg.validate_steps_freq == 0:
-                val_loss = validate_all(model, val_loader, cfg, use_fp16)
+                val_loss = validate_all(model, val_loader, cfg, use_fp16, val_batches=5) # TODO, disable val_batches in final commit/run
                 logger.info(f"Step:{global_step} Val Loss:{val_loss:.4f}")
                 wandb.log({"val/loss": val_loss, "epoch": epoch}, step=global_step)
 
@@ -260,11 +266,15 @@ if __name__ == "__main__":
     # 5. Actual train and validation, validation_dataloader=None to do just traing.
     train_model(model, optimizer, cfg, train_dataloader, validation_dataloader)
 
-    # Loading best model back
+    # 6. Loading best model back
     model, tokenizer = load_saved_model(cfg, is_lora=cfg.finetune_method in {"lora", "qlora"}, device="cuda", logger=logger)
     logger.info(f"Pushing to hub at: {cfg.checkpoint_id}")
     if cfg.push_model_to_hub:
         push_to_hub(model, cfg, tokenizer, cfg.finetune_method in {"lora", "qlora"})
 
+    # 7. Test?  # TODO
+    
+    
+    # 8. Wrap up
     wandb.finish()
     logger.info("Train finished")
