@@ -5,7 +5,7 @@ import torch
 
 @dataclass
 class Configuration:
-    dataset_id: str = "savoji/coco-paligemma"
+    dataset_id: str = "detection-datasets/coco"
 
     model_id: str = "google/gemma-3-4b-pt"
     checkpoint_id: str = "savoji/gemma-3-4b-pt-coco"
@@ -18,7 +18,7 @@ class Configuration:
     epochs = 10
 
     project_name: str = "gemma3-coco"
-    run_name: str  = "coco_00"
+    run_name: str  = "coco_01"
     project_dir: str = "runs"
     log_dir: str  = "logs"
 
