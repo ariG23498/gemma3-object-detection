@@ -1,6 +1,5 @@
 from datasets import load_dataset
 import argparse
-from config import Configuration
 
 def coco_to_xyxy(coco_bbox):
     x, y, width, height = coco_bbox
@@ -38,6 +37,8 @@ def format_objects(example):
 
 
 if __name__ == "__main__":
+    from utils.config import Configuration # To avoid circular import error
+
     # Support for generic script for dataset
     cfg = Configuration() 
     parser = argparse.ArgumentParser(description='Process dataset for PaLiGemma')
