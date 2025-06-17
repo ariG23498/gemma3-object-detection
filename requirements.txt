@@ -9,3 +9,6 @@ wandb
 peft
 albumentations
 argparse
+omegaconf
+unsloth==2025.5.7 
+unsloth-zoo==2025.5.8
