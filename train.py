@@ -12,6 +12,11 @@ from utils import train_collate_function
 import argparse
 import albumentations as A
 
+from tqdm import tqdm
+
+
+
+
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
@@ -53,8 +58,20 @@ def get_dataloader(processor, cfg):
 def train_model(model, optimizer, cfg, train_dataloader):
     logger.info("Start training")
     global_step = 0
-    for epoch in range(cfg.epochs):
-        for idx, batch in enumerate(train_dataloader):
+    
+    
+    epoch_pbar = tqdm(range(cfg.epochs) , desc = "Epochs" , position= 0)
+    
+    
+    for epoch in epoch_pbar:
+        
+        epoch_pbar.set_description(f"Epoch {epoch+1}/{cfg.epochs}")
+        
+        
+        
+        batch_pbar = tqdm(train_dataloader, desc="Batches", leave=False, position=1)
+        
+        for idx, batch in enumerate(batch_pbar):
             outputs = model(**batch.to(model.device))
             loss = outputs.loss
             if idx % 100 == 0:
@@ -65,6 +82,9 @@ def train_model(model, optimizer, cfg, train_dataloader):
             optimizer.step()
             optimizer.zero_grad()
             global_step += 1
+        batch_pbar.close()
+        
+    epoch_pbar.close()
     return model
 
 

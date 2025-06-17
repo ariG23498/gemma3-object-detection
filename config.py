@@ -17,4 +17,6 @@ class Configuration:
     batch_size: int = 1 # 8 for "google/gemma-3-4b-pt"
     learning_rate: float = 2e-05
     epochs = 2
+    
+    project_name: str = "gemma_finetune" 
 
