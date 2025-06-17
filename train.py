@@ -3,12 +3,12 @@ try:
     from unsloth import FastModel
 except ImportError:
     FastModel = None  # will be checked at runtime
-# FastModel = None
+# FastModel = None  # uncomment this line when commenting above lines
 
 import logging
 import wandb
 from functools import partial
-
+import os
 import torch
 from torch.amp import autocast, GradScaler
 from datasets import load_dataset
@@ -29,35 +29,38 @@ logger = logging.getLogger(__name__)
 
 augmentations = A.Compose([
     A.Resize(height=896, width=896),
-    # A.HorizontalFlip(p=0.5), # does this handle flipping box coordinates? 
+    A.HorizontalFlip(p=0.5),
     A.ColorJitter(p=0.2),
 ], bbox_params=A.BboxParams(format='coco', label_fields=['category_ids'], filter_invalid_bboxes=True))
 
-def get_dataloader_unsloth(tokenizer, args, dtype, split="train"):
-    logger.info("Fetching the dataset")
-    train_dataset = load_dataset(args.dataset_id, split=split)  # or cfg.dataset_id
-    train_collate_fn = partial(
-        train_collate_function_unsloth,
-        tokenizer=tokenizer,         # <- Use the Unsloth tokenizer
-        dtype=dtype,
-        transform=augmentations
-    )
+# def get_dataloader_unsloth(tokenizer, args, dtype, split="train"):
+#     logger.info("Fetching the dataset")
+#     train_dataset = load_dataset(args.dataset_id, split=split)  # or cfg.dataset_id
+#     train_collate_fn = partial(
+#         train_collate_function_unsloth,
+#         tokenizer=tokenizer,         # <- Use the Unsloth tokenizer instead of processor
+#         dtype=dtype,
+#         transform=augmentations
+#     )
 
-    logger.info("Building data loader")
-    train_dataloader = DataLoader(
-        train_dataset,
-        batch_size=args.batch_size,
-        collate_fn=train_collate_fn,
-        shuffle=True,
-    )
-    return train_dataloader
+#     logger.info("Building data loader")
+#     train_dataloader = DataLoader(
+#         train_dataset,
+#         batch_size=args.batch_size,
+#         collate_fn=train_collate_fn,
+#         shuffle=True,
+#     )
+#     return train_dataloader
 
-def get_dataloader(processor, args, dtype, tokenizer=None, split="train"):
+def get_dataloader(processor, args, dtype, split="train", is_unsloth=False):
     logger.info("Fetching the dataset")
     train_dataset = load_dataset(cfg.dataset_id, split=split)
-    train_collate_fn = partial(
-        train_collate_function, processor=processor, dtype=dtype, transform=augmentations
-    )
+
+    if is_unsloth:
+        # <- Use the Unsloth tokenizer instead of processor
+        train_collate_fn = partial(train_collate_function_unsloth,tokenizer=tokenizer,dtype=dtype,transform=augmentations)
+    else:
+        train_collate_fn = partial(train_collate_function, processor=processor, dtype=dtype, transform=augmentations)
 
     logger.info("Building data loader")
     train_dataloader = DataLoader(
@@ -70,6 +73,9 @@ def get_dataloader(processor, args, dtype, tokenizer=None, split="train"):
     return train_dataloader
 
 def step(model, batch, device, use_fp16, optimizer=None, scaler=None):
+    """
+    Single batch process
+    """
     data = batch.to(device)
     if use_fp16:
         with autocast(device_type=device):
@@ -87,7 +93,9 @@ def step(model, batch, device, use_fp16, optimizer=None, scaler=None):
             optimizer.step()
     return loss.item()
 
-def validate_all(model, val_loader, device, use_fp16, val_batches=5):
+def validate_all(model, val_loader, cfg, use_fp16,val_batches=5):
+
+
     model.eval()
     with torch.no_grad():
         if val_batches:
@@ -97,16 +105,22 @@ def validate_all(model, val_loader, device, use_fp16, val_batches=5):
             for i, batch in enumerate(val_loader):
                 if i >= n_batches:
                     break
-                losses.append(step(model, batch, device, use_fp16))
+                losses.append(step(model, batch, cfg.device, use_fp16))
         else:
-            losses = [step(model, batch, device, use_fp16) for batch in val_loader]
+            losses = [step(model, batch, cfg.device, use_fp16) for batch in val_loader]
     model.train()
     return sum(losses) / len(losses) if len(losses)> 0 else 0
 
-def train_model(model, optimizer, cfg, train_loader, val_loader=None, val_every=5, max_step=10):
+def train_model(model, optimizer, cfg:Configuration, train_loader, val_loader=None):
     use_fp16 = cfg.dtype in [torch.float16, torch.bfloat16]
     scaler = GradScaler() if use_fp16 else None
     global_step, best_val_loss = 0, float("inf")
+
+    if cfg.use_unsloth and FastModel is not None:
+        FastModel.for_training(model) # Enable for inference!
+    else:
+        model.train()
+        model.to(cfg.device)
 
     for epoch in range(cfg.epochs):
         for idx, batch in enumerate(train_loader):
@@ -114,8 +128,8 @@ def train_model(model, optimizer, cfg, train_loader, val_loader=None, val_every=
             if global_step % 1 == 0:
                 logger.info(f"Epoch:{epoch} Step:{global_step} Loss:{loss:.4f}")
                 wandb.log({"train/loss": loss, "epoch": epoch}, step=global_step)
-            if val_loader and global_step % val_every == 0:
-                val_loss = validate_all(model, val_loader, cfg.device, use_fp16)
+            if val_loader and global_step % cfg.validate_steps_freq == 0:
+                val_loss = validate_all(model, val_loader, cfg, use_fp16)
                 logger.info(f"Step:{global_step} Val Loss:{val_loss:.4f}")
                 wandb.log({"val/loss": val_loss, "epoch": epoch}, step=global_step)
 
@@ -123,9 +137,9 @@ def train_model(model, optimizer, cfg, train_loader, val_loader=None, val_every=
                 best_val_loss = val_loss
                 save_best_model(model, cfg, tokenizer, cfg.finetune_method in {"lora", "qlora"}, logger)
 
-            if global_step>max_step-1:
+            ## Model seem to converge before even first epoch finishes for LoRA. set max_step_to_train<=0 to disable this.
+            if global_step>cfg.max_step_to_train-1 and cfg.max_step_to_train>0:
                 break
-
             global_step += 1
 
     return model
@@ -138,13 +152,14 @@ def load_model(cfg:Configuration):
 
     if cfg.use_unsloth and FastModel is not None:
 
+        # TODO: For LoRA and QLoRa change unsloth config accordigly, generally load_in_4bit, load_in_8bit will be False or LoRA
         model, tokenizer = FastModel.from_pretrained(
             model_name = "unsloth/gemma-3-4b-it",
             max_seq_length = 2048, # Choose any for long context!
             load_in_4bit = True,  # 4 bit quantization to reduce memory
             load_in_8bit = False, # [NEW!] A bit more accurate, uses 2x memory
             full_finetuning = False, # [NEW!] We have full finetuning now!
-            # token = "hf_...", # use one if using gated models
+            # token = os.environ["HF_TOKEN"] # TODO: Handle this
         )
 
         if cfg.finetune_method in {"lora", "qlora"}:
@@ -167,7 +182,7 @@ def load_model(cfg:Configuration):
 
     else:
         quant_args = {}
-        # Enable quantization only for QLoRA or if specifically requested for LoRA
+        # Enable quantization only for QLoRA
         if cfg.finetune_method in {"qlora"}:
             bnb_config = BitsAndBytesConfig(
                 load_in_4bit=True,
@@ -185,8 +200,6 @@ def load_model(cfg:Configuration):
         )
 
         if cfg.finetune_method in {"lora", "qlora"}:
-            # for n, p in model.named_parameters():
-            #     p.requires_grad = False
 
             lora_cfg = LoraConfig(
                 r=lcfg.r,
@@ -198,17 +211,17 @@ def load_model(cfg:Configuration):
             
             model = get_peft_model(model, lora_cfg)
             model.print_trainable_parameters()
-            torch.cuda.empty_cache()
+            torch.cuda.empty_cache() # TODO: Do I need this? Just want to make sure I have mem cleaned up before training starts.
 
         elif cfg.finetune_method == "FFT":
-            # Only unfreeze requested model parts (e.g. multi_modal_projector)
-            for n, p in model.named_parameters():
-                p.requires_grad = any(part in n for part in cfg.mm_tunable_parts)
-                print(f"{n} will be finetuned")
+            # handled below before printing params
+            pass
         else:
             raise ValueError(f"Unknown finetune_method: {cfg.finetune_method}")
     
     for n, p in model.named_parameters():
+        if cfg.finetune_method == "FFT":
+            p.requires_grad = any(part in n for part in cfg.mm_tunable_parts)
         if p.requires_grad:
             print(f"{n} will be finetuned")
 
@@ -217,40 +230,41 @@ def load_model(cfg:Configuration):
 
 if __name__ == "__main__":
     # 1. Parse CLI + YAMLs into config
-    cfg = Configuration.from_args()
+    cfg = Configuration.from_args()  # config.yaml is overriden by CLI arguments
 
-    logger.info("Getting model & turning only attention parameters to trainable")
+    # 2. Load model
+    logger.info(f"Getting model for {cfg.finetune_method}")
+    # loads model based on config. Unsloth, lora, qlora, FFT
     model, tokenizer = load_model(cfg)
 
+    # 3. Get Data
     if cfg.use_unsloth:
-        train_dataloader = get_dataloader_unsloth(tokenizer=tokenizer, args=cfg, dtype=cfg.dtype)
-        validation_dataloader = get_dataloader_unsloth(tokenizer=tokenizer, args=cfg, dtype=cfg.dtype, split="validation")
+        train_dataloader = get_dataloader(tokenizer=tokenizer, args=cfg, dtype=cfg.dtype,split="train",is_unsloth=True)
+        validation_dataloader = get_dataloader(tokenizer=tokenizer, args=cfg, dtype=cfg.dtype, split="validation",is_unsloth=True)
     else:
         processor = AutoProcessor.from_pretrained(cfg.model_id)
-        train_dataloader = get_dataloader(processor=processor, args=cfg, dtype=cfg.dtype)
+        train_dataloader = get_dataloader(processor=processor, args=cfg, dtype=cfg.dtype, split="train")
         validation_dataloader = get_dataloader(processor=processor, args=cfg, dtype=cfg.dtype, split="validation")
     
-    model.train()
-    model.to(cfg.device)
-
     # Credits to Sayak Paul for this beautiful expression
     params_to_train = list(filter(lambda x: x.requires_grad, model.parameters()))
     optimizer = torch.optim.AdamW(params_to_train, lr=cfg.learning_rate)
 
+    # 5. Enable logging, need to login or set wanddb token in os.env
     wandb.init(
-        project=cfg.project_name,
+        project=cfg.wandb_project_name,
         name=cfg.run_name if hasattr(cfg, "run_name") else None,
         config=vars(cfg),
     )
 
-    train_model(model, optimizer, cfg, train_dataloader, validation_dataloader,val_every=5, max_step=2)
+    # 5. Actual train and validation, validation_dataloader=None to do just traing.
+    train_model(model, optimizer, cfg, train_dataloader, validation_dataloader)
 
     # Loading best model back
     model, tokenizer = load_saved_model(cfg, is_lora=cfg.finetune_method in {"lora", "qlora"}, device="cuda", logger=logger)
     logger.info(f"Pushing to hub at: {cfg.checkpoint_id}")
-    # TODO add flag to config (code tested and its working)
-    # if push_hub:
-    push_to_hub(model, cfg, tokenizer, cfg.finetune_method in {"lora", "qlora"})
+    if cfg.push_model_to_hub:
+        push_to_hub(model, cfg, tokenizer, cfg.finetune_method in {"lora", "qlora"})
 
     wandb.finish()
     logger.info("Train finished")

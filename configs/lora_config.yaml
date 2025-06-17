@@ -10,3 +10,5 @@ target_modules:
   - down_proj
   - gate_proj
 max_seq_length: 2048  # Unsloth will RoPE-scale
+load_in_4bit: true
+load_in_8bit: false
