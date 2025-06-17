@@ -29,7 +29,7 @@ class UserLoRAConfig:
 @dataclass
 class Configuration:
     dataset_id: str = "ariG23498/license-detection-paligemma"
-    model_id: str = "unsloth/gemma-3-4b-it" #"google/gemma-3-4b-pt"
+    model_id: str = "google/gemma-3-4b-pt" # "unsloth/gemma-3-4b-it"
     checkpoint_id: str = "ajaymin28/Gemma3_ObjeDet"
     push_model_to_hub: bool = False
     device: str = "cuda" if torch.cuda.is_available() else "cpu"

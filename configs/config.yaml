@@ -1,5 +1,5 @@
 dataset_id: "ariG23498/license-detection-paligemma"
-model_id: "unsloth/gemma-3-4b-it" #"google/gemma-3-4b-pt"
+model_id: "google/gemma-3-4b-pt" # "unsloth/gemma-3-4b-it" 
 checkpoint_id: "ajaymin28/Gemma3_ObjeDet"
 
 device: "cuda"

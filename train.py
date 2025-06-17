@@ -36,25 +36,6 @@ augmentations = A.Compose([
     A.ColorJitter(p=0.2),
 ], bbox_params=A.BboxParams(format='coco', label_fields=['category_ids'], filter_invalid_bboxes=True))
 
-# TODO: Delete this after testing get_dataloader() with is_unsloth=True flag
-# def get_dataloader_unsloth(tokenizer, args, dtype, split="train"):
-#     logger.info("Fetching the dataset")
-#     train_dataset = load_dataset(args.dataset_id, split=split)  # or cfg.dataset_id
-#     train_collate_fn = partial(
-#         train_collate_function_unsloth,
-#         tokenizer=tokenizer,         # <- Use the Unsloth tokenizer instead of processor
-#         dtype=dtype,
-#         transform=augmentations
-#     )
-
-#     logger.info("Building data loader")
-#     train_dataloader = DataLoader(
-#         train_dataset,
-#         batch_size=args.batch_size,
-#         collate_fn=train_collate_fn,
-#         shuffle=True,
-#     )
-#     return train_dataloader
 
 def get_dataloader(args:Configuration,processor=None,tokenizer=None, split="train", is_unsloth=False):
     logger.info(f"Fetching the dataset: {cfg.dataset_id}:{split}")
@@ -189,13 +170,6 @@ def train_model(model, optimizer, cfg:Configuration, train_loader, val_loader=No
     scaler = GradScaler() if use_fp16 else None
     global_step, best_val_loss = 0, float("inf")
 
-    # total_trainable = 0
-    # total_params = 0
-    # for n, p in model.named_parameters():
-    #     total_params += p.numel()
-    #     if p.requires_grad:
-    #         total_trainable += p.numel()
-    # logger.info(f"Total trainable parameters before train(): {total_trainable:,}")
 
     # if cfg.use_unsloth and FastModel is not None:
     #     # logger.info("Before setting for training...")
@@ -207,14 +181,6 @@ def train_model(model, optimizer, cfg:Configuration, train_loader, val_loader=No
 
     model.train()
     model.to(cfg.device)
-
-    # total_trainable = 0
-    # total_params = 0
-    # for n, p in model.named_parameters():
-    #     total_params += p.numel()
-    #     if p.requires_grad:
-    #         total_trainable += p.numel()
-    # logger.info(f"Total trainable parameters after train(): {total_trainable:,}")
 
     logger.info("after setting for training...")
     # model.print_trainable_parameters()
@@ -229,11 +195,11 @@ def train_model(model, optimizer, cfg:Configuration, train_loader, val_loader=No
             loss = step(model, batch, cfg.device, use_fp16, optimizer, scaler)
             if global_step % 1 == 0:
                 logger.info(f"Epoch:{epoch} Step:{global_step} Loss:{loss:.4f}")
-                # wandb.log({"train/loss": loss, "epoch": epoch}, step=global_step)
+                wandb.log({"train/loss": loss, "epoch": epoch}, step=global_step)
             if val_loader and global_step % cfg.validate_steps_freq == 0:
                 val_loss = validate_all(model, val_loader, cfg, use_fp16, val_batches=1) # if val_batches>0 the code will validate on that many batches only. -1 to disable this
                 logger.info(f"Step:{global_step} Val Loss:{val_loss:.4f}")
-                # wandb.log({"val/loss": val_loss, "epoch": epoch}, step=global_step)
+                wandb.log({"val/loss": val_loss, "epoch": epoch}, step=global_step)
 
             if val_loss < best_val_loss:
                 best_val_loss = val_loss
@@ -368,12 +334,12 @@ if __name__ == "__main__":
     params_to_train = list(filter(lambda x: x.requires_grad, model.parameters()))
     optimizer = torch.optim.AdamW(params_to_train, lr=cfg.learning_rate)
 
-    # # 5. Enable logging, need to login or set wanddb token in os.env
-    # wandb.init(
-    #     project=cfg.wandb_project_name,
-    #     name=cfg.run_name if hasattr(cfg, "run_name") else None,
-    #     config=vars(cfg),
-    # )
+    # 5. Enable logging, need to login or set wanddb token in os.env
+    wandb.init(
+        project=cfg.wandb_project_name,
+        name=cfg.run_name if hasattr(cfg, "run_name") else None,
+        config=vars(cfg),
+    )
 
     # 5. Actual train and validation, validation_dataloader=None to do just traing.
     train_model(model, optimizer, cfg, train_dataloader, validation_dataloader)
@@ -388,5 +354,5 @@ if __name__ == "__main__":
     
     
     # 8. Wrap up
-    # wandb.finish()
+    wandb.finish()
     logger.info("Train finished")
