@@ -4,6 +4,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 from PIL import ImageDraw
 
+from transformers import Idefics3Processor
+
 from create_dataset import format_objects
 
 def parse_paligemma_label(label, width, height):
@@ -52,7 +54,7 @@ def visualize_bounding_boxes(image, label, width, height, name):
     plt.close()
 
 
-def train_collate_function(batch_of_samples, processor, dtype, transform=None):
+def train_collate_function(batch_of_samples, processor, device, transform=None):
     images = []
     prompts = []
     for sample in batch_of_samples:
@@ -65,36 +67,49 @@ def train_collate_function(batch_of_samples, processor, dtype, transform=None):
             sample["width"] = sample["image"].shape[1]
             sample['label_for_paligemma'] = format_objects(sample)['label_for_paligemma'] 
         images.append([sample["image"]])
-        prompts.append(
-            f"{processor.tokenizer.boi_token} detect \n\n{sample['label_for_paligemma']} {processor.tokenizer.eos_token}"
-        )
-
+        if isinstance(processor, Idefics3Processor):
+            prompts.append(
+                f"{processor.tokenizer.bos_token}user\n<image>\ndetect\n\n{sample['label_for_paligemma']}\n{processor.tokenizer.eos_token}\n{processor.tokenizer.bos_token}assistant"
+            )
+        else:
+            prompts.append(
+                f"{processor.tokenizer.boi_token} detect \n\n{sample['label_for_paligemma']} {processor.tokenizer.eos_token}"
+            )
+        
+    
     batch = processor(images=images, text=prompts, return_tensors="pt", padding=True)
 
     # The labels are the input_ids, and we mask the padding tokens in the loss computation
     labels = batch["input_ids"].clone()  # Clone input IDs for labels
 
-    # List from https://ai.google.dev/gemma/docs/core/huggingface_vision_finetune_qlora
-    # Mask image tokens
-    image_token_id = [
-        processor.tokenizer.convert_tokens_to_ids(
-            processor.tokenizer.special_tokens_map["boi_token"]
-        )
-    ]
+    if not isinstance(processor, Idefics3Processor):
+        # List from https://ai.google.dev/gemma/docs/core/huggingface_vision_finetune_qlora
+        # Mask image tokens
+        image_token_id = [
+            processor.tokenizer.convert_tokens_to_ids(
+                processor.tokenizer.special_tokens_map["bos_token"]
+            )
+        ]
+    else:
+      image_token_id = processor.tokenizer.additional_special_tokens_ids[
+          processor.tokenizer.additional_special_tokens.index("<image>")
+      ]
     # Mask tokens for not being used in the loss computation
     labels[labels == processor.tokenizer.pad_token_id] = -100
     labels[labels == image_token_id] = -100
-    labels[labels == 262144] = -100
+    if not isinstance(processor, Idefics3Processor):
+        labels[labels == 262144] = -100
 
     batch["labels"] = labels
 
-    batch["pixel_values"] = batch["pixel_values"].to(
-        dtype
-    )  # to check with the implementation
+    if not isinstance(processor, Idefics3Processor):
+        batch["pixel_values"] = batch["pixel_values"].to(
+            device
+        )  # to check with the implementation
     return batch
 
 
-def test_collate_function(batch_of_samples, processor, dtype):
+def test_collate_function(batch_of_samples, processor, device):
     images = []
     prompts = []
     for sample in batch_of_samples:
@@ -102,7 +117,8 @@ def test_collate_function(batch_of_samples, processor, dtype):
         prompts.append(f"{processor.tokenizer.boi_token} detect \n\n")
 
     batch = processor(images=images, text=prompts, return_tensors="pt", padding=True)
-    batch["pixel_values"] = batch["pixel_values"].to(
-        dtype
-    )  # to check with the implementation
+    if not isinstance(processor, Idefics3Processor):
+        batch["pixel_values"] = batch["pixel_values"].to(
+            device
+        )  # to check with the implementation
     return batch, images

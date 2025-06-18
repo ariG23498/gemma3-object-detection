@@ -14,7 +14,7 @@ os.makedirs("outputs", exist_ok=True)
 def get_dataloader(processor):
     test_dataset = load_dataset(cfg.dataset_id, split="test")
     test_collate_fn = partial(
-        test_collate_function, processor=processor, dtype=cfg.dtype
+        test_collate_function, processor=processor, device=cfg.device
     )
     test_dataloader = DataLoader(
         test_dataset, batch_size=cfg.batch_size, collate_fn=test_collate_fn
