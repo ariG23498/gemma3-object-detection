@@ -2,6 +2,7 @@ import re
 import os
 import matplotlib.pyplot as plt
 import numpy as np
+import albumentations as A
 from PIL import ImageDraw, Image, ImageFont
 font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", size=20)
 
@@ -64,7 +65,7 @@ def visualize_bounding_boxes(image, labels, width, height, name):
     plt.close()
 
 
-def train_collate_function(batch_of_samples, processor, dtype, transform=None):
+def train_collate_function(batch_of_samples, processor, dtype, transform=None, return_images=False):
     # @sajjad: need to set a max number of detections to avoid GPU OOM
     MAX_DETS = 50
     images = []
@@ -140,10 +141,14 @@ def train_collate_function(batch_of_samples, processor, dtype, transform=None):
     batch["pixel_values"] = batch["pixel_values"].to(
         dtype
     )  # to check with the implementation
-    return batch
+
+    if return_images:
+        return batch, images
+    else:
+        return batch
 
 
-def test_collate_function(batch_of_samples, processor, dtype, transform):
+def test_collate_function(batch_of_samples, processor, dtype, transform, return_images=True):
     images = []
     prompts = []
     for sample in batch_of_samples:
@@ -163,7 +168,10 @@ def test_collate_function(batch_of_samples, processor, dtype, transform):
     batch["pixel_values"] = batch["pixel_values"].to(
         dtype
     )  # to check with the implementation
-    return batch, images
+    if return_images:
+        return batch, images
+    else:
+        return batch
 
 def get_last_checkpoint_step(accelerator):
     input_dir = os.path.join(accelerator.project_dir, "checkpoints")
@@ -175,3 +183,94 @@ def get_last_checkpoint_step(accelerator):
     folders.sort(key=_inner)
     input_dir = folders[-1]
     return _inner(input_dir)
+
+def get_augmentations():
+    return A.Compose(
+        [
+            # 0. Affine (shift/scale/rotate) replaces ShiftScaleRotate
+            A.Affine(
+                translate_percent={"x": 0.0625, "y": 0.0625},  # ±6% shift
+                scale=(0.8, 1.2),                               # 80–120% scale
+                rotate=(-15, 15),                               # ±15° rotation
+                interpolation=1,
+                p=0.5
+            ),
+
+            # 1. Random “safe” crop that ensures any remaining box still has area
+            A.RandomSizedBBoxSafeCrop(
+                height=800, width=800,
+                erosion_rate=0.0,
+                p=0.3
+            ),
+
+            # 2. Flips
+            A.HorizontalFlip(p=0.5),
+            A.VerticalFlip(p=0.1),
+
+            # 3. Color‐space augmentations (choose one)
+            A.OneOf(
+                [
+                    A.RandomBrightnessContrast(
+                        brightness_limit=0.2,
+                        contrast_limit=0.2,
+                        p=1.0
+                    ),
+                    A.HueSaturationValue(
+                        hue_shift_limit=15,
+                        sat_shift_limit=20,
+                        val_shift_limit=15,
+                        p=1.0
+                    ),
+                    A.CLAHE(
+                        clip_limit=2.0,
+                        tile_grid_size=(8, 8),
+                        p=1.0
+                    ),
+                ],
+                p=0.5
+            ),
+
+            # 4. Slight RGB shifts
+            A.RGBShift(
+                r_shift_limit=15,
+                g_shift_limit=15,
+                b_shift_limit=15,
+                p=0.3
+            ),
+
+            # 5. Blur or noise (using GaussNoise, since GaussianNoise isn’t available)
+            A.OneOf(
+                [
+                    A.GaussianBlur(blur_limit=(3, 7), p=1.0),
+                    A.MotionBlur(blur_limit=7, p=1.0),
+                    A.GaussNoise(p=1.0),
+                ],
+                p=0.3
+            ),
+
+            # 6. CoarseDropout for “cutout”‐style occlusion
+            A.CoarseDropout(
+                num_holes_range = (1,8),
+                hole_height_range = (32, 64),
+                hole_width_range = (32, 64),
+                p=0.3
+            ),
+
+            # 7. Grid or optical distortions (drop shift_limit in OpticalDistortion)
+            A.OneOf(
+                [
+                    A.GridDistortion(num_steps=5, distort_limit=0.3, p=1.0),
+                    A.OpticalDistortion(distort_limit=0.05, p=1.0),
+                ],
+                p=0.2
+            ),
+            # 8. Resize to 896×896
+            A.Resize(height=896, width=896),
+        ],
+        bbox_params=A.BboxParams(
+            format='pascal_voc',
+            label_fields=['category_ids'],
+            filter_invalid_bboxes=True,
+            clip=True,
+        )
+    )
