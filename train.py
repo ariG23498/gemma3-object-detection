@@ -8,7 +8,7 @@ from torch.utils.data import DataLoader
 from transformers import AutoProcessor, Gemma3ForConditionalGeneration
 
 from config import Configuration
-from utils import train_collate_function, get_last_checkpoint_step
+from utils import train_collate_function, get_last_checkpoint_step, get_augmentations
 
 import albumentations as A
 
@@ -22,14 +22,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# @sajjad: add more advanced augmentation
-# see https://github.com/albumentations-team/albumentations?tab=readme-ov-file#list-of-augmentations
-augmentations = A.Compose([
-    A.Resize(height=896, width=896),
-    A.HorizontalFlip(p=0.5),
-    A.ColorJitter(p=0.2),
-], bbox_params=A.BboxParams(format='coco', label_fields=['category_ids'], filter_invalid_bboxes=True))
-
+augmentations = get_augmentations()
 
 def get_dataloader(processor):
     logger.info("Fetching the dataset")
