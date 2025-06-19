@@ -102,7 +102,7 @@ def train_collate_function(batch_of_samples, processor, device, transform=None):
         # Mask image tokens
         image_token_id = [
             processor.tokenizer.convert_tokens_to_ids(
-                processor.tokenizer.special_tokens_map["bos_token"]
+                processor.tokenizer.special_tokens_map["boi_token"]
             )
         ]
     else:
