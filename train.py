@@ -124,8 +124,10 @@ if __name__ == "__main__":
 
     train_model(model, optimizer, cfg, train_dataloader)
 
-    unwrapped_model = accelerator.unwrap_model(model)
-    unwrapped_model.push_to_hub(cfg.checkpoint_id)
-    processor.push_to_hub(cfg.checkpoint_id)
     wandb.finish()
     logger.info("Train finished")
+
+    unwrapped_model = accelerator.unwrap_model(model)
+    unwrapped_model.push_to_hub(cfg.checkpoint_id, safe_serialization=False)
+    processor.push_to_hub(cfg.checkpoint_id)
+    logger.info("Pushed Model to Hub")
