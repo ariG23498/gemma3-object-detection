@@ -8,3 +8,4 @@ bitsandbytes
 wandb
 peft
 albumentations
+argparse
