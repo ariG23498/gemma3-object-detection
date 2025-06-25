@@ -13,16 +13,16 @@ class Configuration:
     device: str = "cuda" if torch.cuda.is_available() else "cpu"
     dtype: torch.dtype = torch.bfloat16
 
-    batch_size: int = 1
+    batch_size: int = 32
     learning_rate: float = 2e-05
     epochs = 10
 
     project_name: str = "gemma3-coco"
-    run_name: str  = "coco_01"
+    run_name: str  = "coco_aug"
     project_dir: str = "runs"
     log_dir: str  = "logs"
 
-    checkpoint_interval: int = 10000
+    checkpoint_interval: int = 50000
     log_interval: int = 100
     automatic_checkpoint_naming: bool = True
-    resume: bool = False
+    resume: bool = True
