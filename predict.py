@@ -6,7 +6,7 @@ from torch.utils.data import DataLoader
 from transformers import AutoProcessor, Gemma3ForConditionalGeneration
 
 from config import Configuration
-from utils import test_collate_function, visualize_bounding_boxes
+from utils import test_collate_function, visualize_bounding_boxes, get_last_checkpoint_step
 
 from accelerate import Accelerator
 from accelerate.logging import get_logger
@@ -18,7 +18,14 @@ os.makedirs("outputs", exist_ok=True)
 
 augmentations = A.Compose([
     A.Resize(height=896, width=896),
-], bbox_params=A.BboxParams(format='coco', label_fields=['category_ids'], filter_invalid_bboxes=True))
+    ],
+    bbox_params=A.BboxParams(
+        format='pascal_voc',
+        label_fields=['category_ids'],
+        filter_invalid_bboxes=True,
+        clip=True,
+    )
+)
 
 
 def get_dataloader(processor):
@@ -45,17 +52,22 @@ if __name__ == "__main__":
 
     processor = AutoProcessor.from_pretrained(cfg.checkpoint_id)
     model = Gemma3ForConditionalGeneration.from_pretrained(
-        cfg.checkpoint_id,
+        cfg.model_id,
         torch_dtype=cfg.dtype,
         device_map="cpu",
     )
-    model.eval()
 
     test_dataloader = get_dataloader(processor=processor)
 
     model, test_dataloader = accelerator.prepare(
         model, test_dataloader
     )
+    model.eval()
+
+    check_point_number = get_last_checkpoint_step(accelerator)
+    global_step = check_point_number * cfg.checkpoint_interval +1
+    accelerator.project_configuration.iteration = check_point_number + 1
+    accelerator.load_state()
 
     sample, sample_images = next(iter(test_dataloader))
     generation = model.generate(**sample, max_new_tokens=1000)
