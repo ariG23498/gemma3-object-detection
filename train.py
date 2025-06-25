@@ -68,9 +68,9 @@ def train_model(model, optimizer, cfg, train_dataloader):
     return model
 
 
-def set_trainable_params(model, keywords):
+def set_trainable_params(model, keytokens):
     for name, param in model.named_parameters():
-        param.requires_grad = any(k in name for k in keywords)
+        param.requires_grad = any(k in name for k in keytokens)
 
 
 def run_training_phase(model, processor, cfg, train_dataloader, train_keys, phase_name="phase"):
@@ -91,7 +91,7 @@ def run_training_phase(model, processor, cfg, train_dataloader, train_keys, phas
     wandb.finish()
 
 
-def load_model_without_quantization(cfg, quantization_config=None):
+def load_model(cfg, quantization_config=None):
     if "SmolVLM" in cfg.model_id:
         model = AutoModelForVision2Seq.from_pretrained(cfg.model_id, device_map="auto", quantization_config=quantization_config)
     else:
@@ -107,7 +107,7 @@ def load_model_with_quantization(cfg):
         bnb_4bit_compute_dtype=torch.bfloat16
     )
 
-    model = load_model_without_quantization(cfg, bnb_config)
+    model = load_model(cfg, bnb_config)
     model = prepare_model_for_kbit_training(model)
 
     lora_config = LoraConfig(
@@ -155,9 +155,9 @@ if __name__ == "__main__":
     logger.info("Loading model")
 
     if args.peft_with_qlora:
-        model = load_model_with_quantization(cfg)
+        model = load_model(cfg)
     else:
-        model = load_model_without_quantization(cfg)
+        model = load_model_with_quantization(cfg)
     
     if args.include_loc_tokens:
         model = get_model_with_resize_token_embeddings(model, processor)
