@@ -33,7 +33,6 @@ def get_augmentations(cfg):
     return augmentations
 
 
-
 def get_dataloader(processor, cfg):
     logger.info("Fetching the dataset")
     train_dataset = load_dataset(cfg.dataset_id, split="train")
@@ -67,6 +66,7 @@ def train_model(model, optimizer, cfg, train_dataloader):
             optimizer.zero_grad()
             global_step += 1
     return model
+
 
 def set_trainable_params(model, keywords):
     for name, param in model.named_parameters():
