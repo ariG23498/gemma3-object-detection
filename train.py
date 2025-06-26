@@ -5,12 +5,13 @@ from functools import partial
 import torch
 from datasets import load_dataset
 from torch.utils.data import DataLoader
-from transformers import AutoProcessor, AutoModelForVision2Seq, AutoModelForCausalLM
+from transformers import AutoProcessor, AutoModelForVision2Seq, AutoModelForCausalLM, BitsAndBytesConfig
 
 from config import Configuration
 from utils import train_collate_function, get_processor_with_new_tokens, get_model_with_resize_token_embeddings
 import argparse
 import albumentations as A
+from peft import prepare_model_for_kbit_training, LoraConfig, get_peft_model, PeftType
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
@@ -30,7 +31,6 @@ def get_augmentations(cfg):
         A.ColorJitter(p=0.2),
     ], bbox_params=A.BboxParams(format='coco', label_fields=['category_ids'], filter_invalid_bboxes=True))
     return augmentations
-
 
 
 def get_dataloader(processor, cfg):
@@ -67,9 +67,10 @@ def train_model(model, optimizer, cfg, train_dataloader):
             global_step += 1
     return model
 
-def set_trainable_params(model, keywords):
+
+def set_trainable_params(model, keytokens):
     for name, param in model.named_parameters():
-        param.requires_grad = any(k in name for k in keywords)
+        param.requires_grad = any(k in name for k in keytokens)
 
 
 def run_training_phase(model, processor, cfg, train_dataloader, train_keys, phase_name="phase"):
@@ -88,19 +89,52 @@ def run_training_phase(model, processor, cfg, train_dataloader, train_keys, phas
 
     train_model(model, optimizer, cfg, train_dataloader)
     wandb.finish()
-c
+
+
+def load_model(cfg, quantization_config=None):
+    if "SmolVLM" in cfg.model_id:
+        model = AutoModelForVision2Seq.from_pretrained(cfg.model_id, device_map="auto", quantization_config=quantization_config)
+    else:
+        model = AutoModelForCausalLM.from_pretrained(cfg.model_id, torch_dtype=cfg.dtype, device_map="auto", _attn_implementation="eager", quantization_config=quantization_config)
+    return model
+
+
+def load_model_with_quantization(cfg):
+    bnb_config = BitsAndBytesConfig(
+        load_in_4bit=True,
+        bnb_4bit_use_double_quant=True,
+        bnb_4bit_quant_type="nf4",
+        bnb_4bit_compute_dtype=torch.bfloat16
+    )
+
+    model = load_model(cfg, bnb_config)
+    model = prepare_model_for_kbit_training(model)
+
+    lora_config = LoraConfig(
+        inference_mode=False,
+        r=8,
+        lora_alpha=32,
+        lora_dropout=0.1,
+        target_modules=["q_proj", "v_proj", "k_proj", "o_proj"],
+        peft_type=PeftType.LORA,
+    )
+
+    qlora_model = get_peft_model(model, lora_config)
+    return qlora_model
+
 
 if __name__ == "__main__":
     cfg = Configuration()
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--model_id', type=str, help='Model ID on Hugging Face Hub')
-    parser.add_argument('--dataset_id', type=str, help='Dataset ID on Hugging Face Hub')
-    parser.add_argument('--batch_size', type=int, help='Batch size for training')
-    parser.add_argument('--learning_rate', type=float, help='Learning rate')
-    parser.add_argument('--epochs', type=int, help='Number of training epochs')
-    parser.add_argument('--checkpoint_id', type=str, help='Model repo to push to the Hub')
+    parser.add_argument('--model_id',           type=str,            help='Model ID on Hugging Face Hub')
+    parser.add_argument('--dataset_id',         type=str,            help='Dataset ID on Hugging Face Hub')
+    parser.add_argument('--batch_size',         type=int,            help='Batch size for training')
+    parser.add_argument('--learning_rate',      type=float,          help='Learning rate')
+    parser.add_argument('--epochs',             type=int,            help='Number of training epochs')
+    parser.add_argument('--checkpoint_id',      type=str,            help='Model repo to push to the Hub')
     parser.add_argument('--include_loc_tokens', action='store_true', help='Include location tokens in the model.')
+    parser.add_argument('--peft_with_qlora',    action='store_true', help='Use QLoRA for training')
 
     args = parser.parse_args()
 
@@ -119,11 +153,12 @@ if __name__ == "__main__":
     train_dataloader = get_dataloader(processor=processor, cfg=cfg)
 
     logger.info("Loading model")
-    if "SmolVLM" in cfg.model_id:
-        model = AutoModelForVision2Seq.from_pretrained(cfg.model_id, device_map="auto")
-    else:
-        model = AutoModelForCausalLM.from_pretrained(cfg.model_id, torch_dtype=cfg.dtype, device_map="auto", _attn_implementation="eager")
 
+    if args.peft_with_qlora:
+        model = load_model(cfg)
+    else:
+        model = load_model_with_quantization(cfg)
+    
     if args.include_loc_tokens:
         model = get_model_with_resize_token_embeddings(model, processor)
 
