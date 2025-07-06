@@ -13,8 +13,8 @@ class Configuration:
 
     device: str = "cuda" if torch.cuda.is_available() else "cpu"
     dtype: torch.dtype = "auto" # Change to torch.bfloat16 for "google/gemma-3-4b-pt"
+    attn_implementation = "eager"  # flash_attention_2
 
     batch_size: int = 4 # 8 for "google/gemma-3-4b-pt"
     learning_rate: float = 2e-05
-    epochs = 2
-
+    epochs = 10
