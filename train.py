@@ -88,7 +88,6 @@ def run_training_phase(model, processor, cfg, train_dataloader, train_keys, phas
 
     train_model(model, optimizer, cfg, train_dataloader)
     wandb.finish()
-c
 
 if __name__ == "__main__":
     cfg = Configuration()
@@ -101,6 +100,7 @@ if __name__ == "__main__":
     parser.add_argument('--epochs', type=int, help='Number of training epochs')
     parser.add_argument('--checkpoint_id', type=str, help='Model repo to push to the Hub')
     parser.add_argument('--include_loc_tokens', action='store_true', help='Include location tokens in the model.')
+    parser.add_argument('--attn_imp', type=str, help='attn_implementation to use. eager or flash_attention_2')
 
     args = parser.parse_args()
 
@@ -110,6 +110,7 @@ if __name__ == "__main__":
     if args.learning_rate: cfg.learning_rate = args.learning_rate
     if args.epochs: cfg.epochs = args.epochs
     if args.checkpoint_id: cfg.checkpoint_id = args.checkpoint_id
+    if args.attn_imp: cfg.attn_implementation = args.attn_imp
 
     processor = AutoProcessor.from_pretrained(cfg.model_id)
     if args.include_loc_tokens:
@@ -122,16 +123,13 @@ if __name__ == "__main__":
     if "SmolVLM" in cfg.model_id:
         model = AutoModelForVision2Seq.from_pretrained(cfg.model_id, device_map="auto")
     else:
-        model = AutoModelForCausalLM.from_pretrained(cfg.model_id, torch_dtype=cfg.dtype, device_map="auto", _attn_implementation="eager")
+        model = AutoModelForCausalLM.from_pretrained(cfg.model_id, torch_dtype=cfg.dtype, device_map="auto", attn_implementation=cfg.attn_implementation)
 
     if args.include_loc_tokens:
         model = get_model_with_resize_token_embeddings(model, processor)
 
-        logger.info("Stage 1: Training embed_tokens")
-        run_training_phase(model, processor, cfg, train_dataloader, train_keys=["embed_tokens"], phase_name="embed_only")
-
-        logger.info("Stage 2: Fine-tuning embed_tokens + attn")
-        run_training_phase(model, processor, cfg, train_dataloader, train_keys=["embed_tokens", "attn"], phase_name="embed_attn")
+        logger.info("Single-stage: Fine-tuning embed_tokens + attn")
+        run_training_phase(model, processor, cfg, train_dataloader, train_keys=["embed_tokens", "attn"], phase_name="embed_attn_embed_tokens")
     else:
         logger.info("Single-stage: Fine-tuning attn only")
         run_training_phase(model, processor, cfg, train_dataloader, train_keys=["attn"], phase_name="attn_only")
