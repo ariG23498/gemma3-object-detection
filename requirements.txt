@@ -1,7 +1,7 @@
 torch
 transformers
 accelerate
-datasets==3.6.0
+datasets
 matplotlib
 huggingface_hub[hf_xet]
 bitsandbytes
