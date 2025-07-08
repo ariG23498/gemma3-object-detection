@@ -134,7 +134,7 @@ if __name__ == "__main__":
         logger.info("Single-stage: Fine-tuning attn only")
         run_training_phase(model, processor, cfg, train_dataloader, train_keys=["attn"], phase_name="attn_only")
 
-    model.push_to_hub(cfg.checkpoint_id)
-    processor.push_to_hub(cfg.checkpoint_id)
+    model.push_to_hub(cfg.checkpoint_id, safe_serialization=False)
+    processor.push_to_hub(cfg.checkpoint_id, safe_serialization=False)
 
     logger.info("Train finished")
