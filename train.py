@@ -137,7 +137,11 @@ if __name__ == "__main__":
         processor = get_processor_with_new_tokens(processor)
 
     train_dataloader = get_dataloader(processor=processor, cfg=cfg, split="train")
-    val_dataloader = get_dataloader(processor=processor, cfg=cfg, split="validation")
+    try:
+        val_dataloader = get_dataloader(processor=processor, cfg=cfg, split="validation")
+    except ValueError:
+        logger.warning("No validation split found in the dataset. Validation will be skipped.")
+        val_dataloader = None
 
     logger.info("Loading model")
     if "SmolVLM" in cfg.model_id:
