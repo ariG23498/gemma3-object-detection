@@ -75,7 +75,7 @@ Toggle `--include_loc_tokens` based on your strategy (see explanation above).
 Run inference with:
 
 ```bash
-python infer.py
+python predict.py
 ```
 
 This script uses the fine-tuned model to detect license plates and generates images in the outputs/ folder.
