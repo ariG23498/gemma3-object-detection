@@ -50,7 +50,7 @@ if __name__ == "__main__":
         ),
     )
 
-    processor = AutoProcessor.from_pretrained(cfg.checkpoint_id)
+    processor = AutoProcessor.from_pretrained(cfg.model_id)
     model = Gemma3ForConditionalGeneration.from_pretrained(
         cfg.model_id,
         torch_dtype=cfg.dtype,
