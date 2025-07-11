@@ -1,3 +1,5 @@
 .ruff_cache
 .venv
+.env
 __pycache__
+wandb/
