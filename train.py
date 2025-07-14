@@ -3,6 +3,7 @@ import wandb
 from functools import partial
 
 import torch
+import torch.nn as nn
 from datasets import load_dataset
 from torch.utils.data import DataLoader
 from transformers import AutoProcessor, AutoModelForVision2Seq, AutoModelForCausalLM
@@ -157,6 +158,13 @@ if __name__ == "__main__":
     else:
         logger.info("Single-stage: Fine-tuning attn only")
         run_training_phase(model, processor, cfg, train_dataloader, train_keys=["attn"], phase_name="attn_only", val_dataloader=val_dataloader)
+    
+    try:
+        if model.lm_head.weight.data_ptr() == model.language_model.embed_tokens.weight.data_ptr():
+            logger.info("Cloning lm_head to break shared weights...")
+            model.lm_head.weight = nn.Parameter(model.lm_head.weight.clone())
+    except Exception as ex:
+        logger.info("Either requested layers not found or problem during cloning operation.")
 
     model.push_to_hub(cfg.checkpoint_id)
     processor.push_to_hub(cfg.checkpoint_id)
